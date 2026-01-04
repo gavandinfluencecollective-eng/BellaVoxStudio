@@ -1,0 +1,7 @@
+{
+  "name": "Bella Vox Studio",
+  "description": "Premium Voices. Real Emotions. An interactive text-to-speech application with human-like voices and customizable vibes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
