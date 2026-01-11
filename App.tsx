@@ -396,17 +396,13 @@ const App: React.FC = () => {
     const sampleRate = editorAudioBuffer.sampleRate;
     const data = editorAudioBuffer.getChannelData(0);
     
-    // Convert current user settings to internal logic parameters
     const threshold = Math.pow(10, silenceThreshold / 20);
     const minSilenceSamples = Math.floor(sampleRate * silenceDuration);
     const reductionFactor = Math.max(0, Math.min(1, silenceReduction / 100));
     const targetMaxGapSamples = Math.floor(sampleRate * silenceMax);
     
-    // Humanistic floor: Even at 100% reduction, maintain a tiny 'conversational' gap
-    // to prevent unnatural jumping. Standard human breath/pause floor is ~150ms.
     const conversationalFloorSamples = Math.floor(sampleRate * 0.15);
 
-    // Optimized detection window
     const windowSize = 512; 
     const isWindowSilent = (start: number) => {
       let max = 0;
@@ -416,7 +412,6 @@ const App: React.FC = () => {
       return max < threshold;
     };
 
-    // Phase 1: Identify Active Segments
     const activeSegments: { start: number; end: number }[] = [];
     let inActiveSegment = false;
     let currentStart = 0;
@@ -435,9 +430,6 @@ const App: React.FC = () => {
 
     if (activeSegments.length === 0) return;
 
-    // Phase 2: Natural Merging
-    // Merge segments that are closer together than user's 'Silence Duration' setting
-    // This preserves internal word rhythm and natural sentence flow.
     const mergedSegments: { start: number; end: number }[] = [];
     let currentSegment = { ...activeSegments[0] };
 
@@ -453,7 +445,6 @@ const App: React.FC = () => {
     }
     mergedSegments.push(currentSegment);
 
-    // Phase 3: Enhanced Gap Calculation (Pacing Engine)
     const audioWithGaps: { start: number; end: number; followingGap: number }[] = [];
     
     for (let i = 0; i < mergedSegments.length; i++) {
@@ -461,24 +452,16 @@ const App: React.FC = () => {
       let followingGap = 0;
       if (i < mergedSegments.length - 1) {
         const originalGapSize = mergedSegments[i + 1].start - seg.end;
-        
-        // Apply reduction percentage to the gap
         let desiredGap = Math.floor(originalGapSize * (1 - reductionFactor));
-        
-        // NATURAL PACE RULE: Never cut below conversational length unless the user
-        // has set their Silence Max value to be even lower than the floor.
         const dynamicFloor = Math.min(conversationalFloorSamples, targetMaxGapSamples);
         if (desiredGap < dynamicFloor && originalGapSize > dynamicFloor) {
           desiredGap = dynamicFloor;
         }
-
-        // Apply hard cap from user setting (Silence Max)
         followingGap = Math.min(desiredGap, targetMaxGapSamples);
       }
       audioWithGaps.push({ ...seg, followingGap });
     }
 
-    // Phase 4: Reconstruction with smooth transitions
     const totalLength = audioWithGaps.reduce((acc, seg) => acc + (seg.end - seg.start) + seg.followingGap, 0);
     const newBuffer = getAudioContext().createBuffer(1, totalLength, sampleRate);
     const newData = newBuffer.getChannelData(0);
@@ -486,16 +469,13 @@ const App: React.FC = () => {
     
     audioWithGaps.forEach((seg, idx) => {
       const segmentData = data.slice(seg.start, seg.end);
-      
-      // Handle stitching with subtle crossfade for seamless flow
       if (silenceCrossfade && idx > 0 && offset > 0) {
-          const fadeSize = Math.floor(sampleRate * 0.005); // 5ms crossfade
+          const fadeSize = Math.floor(sampleRate * 0.005);
           for (let i = 0; i < fadeSize && i < segmentData.length && (offset - fadeSize + i) >= 0; i++) {
               const gain = i / fadeSize;
               newData[offset - fadeSize + i] = newData[offset - fadeSize + i] * (1 - gain) + segmentData[i] * gain;
           }
       }
-      
       newData.set(segmentData, offset);
       offset += (seg.end - seg.start);
       offset += seg.followingGap; 
@@ -550,7 +530,6 @@ const App: React.FC = () => {
       const ctx = getAudioContext();
       let currentBuffer = editorAudioBuffer;
 
-      // 1. NORMALIZE
       const normData = currentBuffer.getChannelData(0);
       let normMax = 0;
       for (let i = 0; i < normData.length; i++) normMax = Math.max(normMax, Math.abs(normData[i]));
@@ -562,7 +541,6 @@ const App: React.FC = () => {
         currentBuffer = normBuffer;
       }
 
-      // 2. NOISE REDUCTION
       const nrSource = currentBuffer;
       const nrBuffer = ctx.createBuffer(1, nrSource.length, nrSource.sampleRate);
       const nrData = nrSource.getChannelData(0);
@@ -579,7 +557,6 @@ const App: React.FC = () => {
       }
       currentBuffer = nrBuffer;
 
-      // 3. DECISIVE SILENCE PURGE (Proper AI pacing logic)
       const srSR = currentBuffer.sampleRate;
       const srData = currentBuffer.getChannelData(0);
       const srThreshold = Math.pow(10, -45 / 20);
@@ -590,7 +567,6 @@ const App: React.FC = () => {
       let srInActive = false;
       let srStart = 0;
       
-      // Detection Phase
       for (let i = 0; i < srData.length; i += srWindowSize) {
         let max = 0;
         for (let j = 0; j < srWindowSize && i + j < srData.length; j++) max = Math.max(max, Math.abs(srData[i + j]));
@@ -601,7 +577,6 @@ const App: React.FC = () => {
       if (srInActive) srActiveSegments.push({ start: srStart, end: srData.length });
       
       if (srActiveSegments.length > 0) {
-        // Natural Merge Phase
         const srMerged: { start: number; end: number }[] = [];
         let srCurr = { ...srActiveSegments[0] };
         for (let i = 1; i < srActiveSegments.length; i++) {
@@ -903,7 +878,13 @@ const App: React.FC = () => {
       
       {/* Settings Drawer */}
       {isDrawerOpen && <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100]" onClick={() => setIsDrawerOpen(false)} />}
-      <aside className={`fixed top-0 right-0 h-full w-full max-w-xs md:w-80 bg-slate-900 border-l border-slate-800 z-[110] p-6 md:p-10 transition-transform duration-500 overflow-y-auto custom-scrollbar ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed top-0 right-0 h-screen max-h-screen w-full max-w-xs md:w-80 bg-slate-900 border-l border-slate-800 z-[110] p-6 md:p-10 transition-transform duration-500 overflow-y-auto overscroll-contain custom-scrollbar ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        
+        {/* BRANDING HEADER - PREMIUM STUDIO STYLE */}
+        <div className="mb-10 pt-2 pb-6 border-b border-slate-800/40 text-center">
+          <span className="text-[10px] font-extrabold text-indigo-400/90 uppercase tracking-[0.4em] select-none block">GAVAND INFLUENCE COLLECTIVE STUDIO</span>
+        </div>
+
         <h2 className="text-xl serif-title font-bold text-amber-50 mb-8 md:mb-12">Studio Settings</h2>
         <div className="space-y-8 md:space-y-10">
           <div>
@@ -1070,8 +1051,8 @@ const App: React.FC = () => {
                     <textarea value={personality} onChange={(e) => setPersonality(e.target.value)} className="w-full h-32 glass rounded-2xl p-6 text-[13px] text-slate-300 outline-none resize-none font-mono custom-scrollbar" />
                   </section>
                   <section className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap justify-between items-center gap-y-3">
+                      <div className="flex flex-wrap items-center gap-3 min-w-0">
                         <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">Drafting Script</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 ${script.length >= CHARACTER_LIMIT ? 'text-amber-500' : 'text-slate-500'}`}>
                           {script.length}/{CHARACTER_LIMIT}
@@ -1103,7 +1084,17 @@ const App: React.FC = () => {
                         </svg>
                       </button>
                     </div>
-                    <textarea value={script} onChange={(e) => setScript(e.target.value.slice(0, CHARACTER_LIMIT))} maxLength={CHARACTER_LIMIT} className="w-full h-80 glass rounded-3xl p-10 text-lg text-slate-100 outline-none resize-none custom-scrollbar" />
+                    <textarea 
+                      value={script} 
+                      onChange={(e) => setScript(e.target.value.slice(0, CHARACTER_LIMIT))} 
+                      maxLength={CHARACTER_LIMIT} 
+                      className="w-full h-80 glass rounded-3xl p-10 text-lg text-slate-100 outline-none resize-none custom-scrollbar" 
+                    />
+                    <div className="text-right px-4 !mt-2">
+                      <span className="text-[10px] font-mono text-slate-500 px-2 py-1 bg-slate-900/40 rounded-lg border border-slate-800/40 select-none">
+                        {script.length} / 999
+                      </span>
+                    </div>
                   </section>
                 </div>
               </div>
@@ -1321,7 +1312,7 @@ const App: React.FC = () => {
                    <p className="text-slate-400 text-sm leading-relaxed">A pro-grade mastering suite for cleaning and finalizing your voice outputs.</p>
                    <div className="space-y-4">
                       {[
-                        { t: "Smart AI Enhance", d: "One-click neural cleanup that normalizes, reduces noise, and fixes pacing." },
+                        { t: "Smart AI Enhance", d: "One-click neural cleanup that normalizes, reduces noise, and hits rhythmic consistency." },
                         { t: "Silence Reduction", d: "Decisively removes dead air while preserving natural conversational rhythm." },
                         { t: "Noise Profiler", d: "Deep spectral profiling to isolate and remove background hum or hiss." },
                         { t: "Waveform Editing", d: "Precise Cut/Copy/Paste with visual waveform selection for manual timing fixes." },
@@ -1412,7 +1403,7 @@ const App: React.FC = () => {
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-2xl mx-auto space-y-8">
              <div className="text-center space-y-4">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Contact Us</h2>
-                <p className="text-slate-500 text-sm italic">Have questions? Our studio team is help.</p>
+                <p className="text-slate-500 text-sm italic">Have questions? Our studio team is here to help.</p>
              </div>
              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
