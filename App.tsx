@@ -1251,27 +1251,29 @@ const App: React.FC = () => {
               </section>
             )}
 
-            <div className="fixed bottom-24 left-0 right-0 px-4 md:px-6 flex justify-center z-[50]">
-              <div className="max-w-4xl w-full glass bg-slate-900/90 p-3 rounded-3xl md:rounded-[32px] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-center gap-3 md:gap-4">
-                <div className="flex gap-2 w-full md:w-auto">
-                  <button onClick={() => handleDownload()} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Save</button>
-                  <button onClick={() => { setEditorAudioBuffer(audioBuffer); setIsEditorActive(true); }} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-indigo-300 hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Edit</button>
+            {!isEditorActive && (
+              <div className="fixed bottom-24 left-0 right-0 px-4 md:px-6 flex justify-center z-[50]">
+                <div className="max-w-4xl w-full glass bg-slate-900/90 p-3 rounded-3xl md:rounded-[32px] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-center gap-3 md:gap-4">
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <button onClick={() => handleDownload()} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Save</button>
+                    <button onClick={() => { setEditorAudioBuffer(audioBuffer); setIsEditorActive(true); }} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-indigo-300 hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Edit</button>
+                    
+                    {audioBuffer && (
+                      <button 
+                        onClick={handleTogglePause} 
+                        className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20`}
+                      >
+                        {isPaused ? 'Play' : 'Pause'}
+                      </button>
+                    )}
+                  </div>
                   
-                  {audioBuffer && (
-                    <button 
-                      onClick={handleTogglePause} 
-                      className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20`}
-                    >
-                      {isPaused ? 'Play' : 'Pause'}
-                    </button>
-                  )}
+                  <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
+                    {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : 'Listen Now'}
+                  </button>
                 </div>
-                
-                <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
-                  {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : 'Listen Now'}
-                </button>
               </div>
-            </div>
+            )}
           </div>
         ) : currentView === 'how-to-use' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
