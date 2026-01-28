@@ -915,7 +915,7 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center justify-between py-3">
-              <span className="text-sm">Voice Consistency Lock</span>
+              <span className="text-sm">Vocal Fingerprint Lock</span>
               <button onClick={() => setIsVoiceConsistencyLock(!isVoiceConsistencyLock)} className={`w-11 h-6 rounded-full relative ${isVoiceConsistencyLock ? 'bg-indigo-600' : 'bg-slate-800'}`}>
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isVoiceConsistencyLock ? 'right-1' : 'left-1'}`} />
               </button>
@@ -1268,7 +1268,7 @@ const App: React.FC = () => {
                     )}
                   </div>
                   
-                  <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
+                  <button onClick={handleGenerate} disabled={script.trim() === '' || isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
                     {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : 'Listen Now'}
                   </button>
                 </div>
@@ -1512,7 +1512,7 @@ const App: React.FC = () => {
           <div className="glass max-w-lg w-full p-8 md:p-10 rounded-3xl md:rounded-[48px] relative z-[130] border border-indigo-500/20 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto custom-scrollbar">
             {isAnalyzing ? (
               <div className="flex flex-col items-center justify-center py-12 md:py-20 gap-6">
-                <div className="w-16 md:w-20 h-16 md:h-20 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-16 md:w-20 h-16 md:h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-white mb-2 serif-title">Analyzing Vocal Profile</h3>
                   <p className="text-slate-500 text-sm">Mapping neural voice characteristics...</p>
@@ -1556,7 +1556,7 @@ const App: React.FC = () => {
           <div className="glass max-w-lg w-full p-8 md:p-10 rounded-3xl md:rounded-[48px] relative z-[130] border border-amber-500/20 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             {isAnalyzing ? (
               <div className="flex flex-col items-center justify-center py-12 md:py-20 gap-6">
-                <div className="w-16 md:w-20 h-16 md:h-20 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-16 md:w-20 h-16 md:h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-white mb-2 serif-title">Refining Vocal Clarity</h3>
                   <p className="text-slate-500 text-sm">Enhancing phonetic reconstruction...</p>
