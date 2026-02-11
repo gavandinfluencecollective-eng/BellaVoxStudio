@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GEMINI_VOICES, VIBES } from './constants';
 import { generateSpeech } from './services/ttsService';
@@ -950,9 +951,9 @@ const App: React.FC = () => {
                   }
                 }}
               >
-                <span className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
+                <h1 className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
                   Bella Voice AI
-                </span>
+                </h1>
                 {currentView === 'main' && (
                   <>
                     <div className="px-1 text-slate-500 group-hover:text-indigo-400">
@@ -1097,6 +1098,28 @@ const App: React.FC = () => {
                     </div>
                   </section>
                 </div>
+
+                {/* COMPLIANCE CONTENT SECTION: HOME PAGE INTRODUCTION (500+ WORDS) */}
+                <section className="mt-16 pt-16 border-t border-slate-800/50 space-y-8 max-w-4xl mx-auto px-4">
+                  <div className="space-y-4">
+                    <h2 className="text-2xl md:text-3xl serif-title font-bold text-white">Advanced Vocal Synthesis and Mastering: The Bella Vox Philosophy</h2>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                      At Bella Vox Studio, we believe that voice technology is more than just transforming text into audio; it is about bridging the digital divide between artificial intelligence and genuine human connection. Our platform is designed as a sophisticated, dual-mode studio environment where creators, podcasters, authors, and visionaries can manifest their ideas through high-fidelity vocal synthesis. By leveraging state-of-the-art neural networks, we provide a spectrum of premium voices that are meticulously mapped for emotional resonance, structural clarity, and organic texture. 
+                    </p>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                      The core of our mission is to empower the "influence collective"—a community of professionals who understand that the nuance of a performance is just as vital as the words themselves. Whether you are seeking the authoritative weight of a cinematic documentary narrator or the raw, wavering vulnerability of a storyteller in a moment of crisis, Bella Vox Studio offers the tools to reach those depths. Our proprietary synthesis engine, powered by Gemini technology, ensures that every output is not just a digital reconstruction, but a digital twin of human performance.
+                    </p>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                      Beyond simple generation, the Bella Wave Editor introduces a revolutionary approach to audio mastering. In a professional workflow, the initial recording is only the beginning. Our integrated editor allows for spectral profiling, silence truncation, and neural noise reduction, ensuring that your final export is studio-grade and ready for immediate broadcast. We have integrated advanced features like the "Voice Consistency Lock" and "Listening Comfort Mode" to address the specific needs of long-form content creators, such as audiobook narrators, who require absolute tonal stability over hours of audio.
+                    </p>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                      Security and ethics are at the forefront of our technological development. Our voice cloning protocol is built on a foundation of user privacy and phonetic integrity. When you clone a voice at Bella Vox Studio, you are creating a private, digital fingerprint that is encrypted and accessible only to your session. This allows for unparalleled customization without compromising the identity of the original speaker. We strictly prohibit the use of our technology for the creation of deceptive content, focusing instead on creative empowerment and historical preservation.
+                    </p>
+                    <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+                      In an era where digital noise is constant, the human voice remains the most powerful instrument for truth and inspiration. Bella Vox Studio is dedicated to perfecting that instrument. Our platform continuously evolves, integrating feedback from our diverse user base to refine our performance vibes and editor capabilities. We invite you to explore the intersections of sound and technology, where your words find their true voice. From the subtle intake of breath before a significant revelation to the triumphant swell of a sports broadcast, every detail is engineered for impact. Welcome to the future of vocal influence.
+                    </p>
+                  </div>
+                </section>
               </div>
             ) : (
               <section className="animate-in fade-in duration-500 min-h-[500px] h-auto md:h-[calc(100vh-200px)] flex flex-col glass rounded-[40px] border border-slate-800 relative overflow-visible z-20">
@@ -1329,15 +1352,6 @@ const App: React.FC = () => {
                    </div>
                 </div>
              </div>
-
-             <div className="bg-indigo-500/5 p-8 rounded-3xl border border-indigo-500/20 text-center space-y-4">
-                <h4 className="text-white font-bold uppercase tracking-widest text-[11px]">Best Feature for Your Need</h4>
-                <div className="flex flex-wrap justify-center gap-4">
-                   <div className="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-[10px] font-medium text-slate-400">Content Creators: <span className="text-indigo-300">Voice Cloning + Smart AI Draft</span></div>
-                   <div className="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-[10px] font-medium text-slate-400">Podcasters: <span className="text-amber-300">Silence Reduction + Smart Enhance</span></div>
-                   <div className="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-[10px] font-medium text-slate-400">Audiobooks: <span className="text-indigo-300">Listening Comfort + Consistency Lock</span></div>
-                </div>
-             </div>
           </section>
         ) : currentView === 'privacy' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
@@ -1346,15 +1360,33 @@ const App: React.FC = () => {
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
              </div>
              <div className="prose prose-invert max-w-none space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>Welcome to Bella Voice AI. Your privacy is paramount to us. This policy outlines how we handle data when you use our digital voice synthesis services.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Data Collection & Use</h3>
-                <p>We provide text-to-speech and voice cloning tools. All audio processing is handled using secure cloud infrastructure. We do not sell personal information or your generated audio contents to third parties.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Cookies & Third-Party Advertising</h3>
-                <p>We use standard technologies like cookies to enhance your experience. <strong>Third-party vendors, including Google, use cookies to serve ads</strong> based on a user's prior visits to your website or other websites. Google's use of advertising cookies enables it and its partners to serve ads to users based on their visit to your sites and/or other sites on the Internet.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">User Data Protection</h3>
-                <p>We implement strict technical measures to protect your vocal fingerprints and scripts. Cloned voices are linked to your session and are not shared across our public vocal profile grid without explicit consent.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Compliance</h3>
-                <p>Our practices are designed to comply with Google AdSense and Analytics policies. Users may opt-out of personalized advertising by visiting Google's Ads Settings.</p>
+                <p>Last Updated: {new Date().toLocaleDateString()}</p>
+                <p>Welcome to Bella Voice AI. Your privacy is paramount to our mission. This Privacy Policy outlines our commitment to transparency and data security in compliance with global standards, including GDPR and CCPA.</p>
+                
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">1. Data Collection & Usage</h3>
+                <p>We provide advanced text-to-speech and neural voice cloning services. When you use our platform, we may collect:</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Voice Samples:</strong> Audio files uploaded or recorded for cloning are used solely to generate neural fingerprints. These are private to your session.</li>
+                  <li><strong>Text Scripts:</strong> Scripts entered into our synthesis engine are processed in real-time. We do not use your scripts for training public models.</li>
+                  <li><strong>Usage Information:</strong> We collect non-identifiable technical data (browser type, device info) to optimize our performance.</li>
+                </ul>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Advertising & Third-Party Services</h3>
+                <p><strong>Third-party vendors, including Google, use cookies to serve ads based on a user's prior visits to our website.</strong></p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and/or other sites on the Internet.</li>
+                  <li>Users may opt out of personalized advertising by visiting <a href="https://www.google.com/settings/ads" className="text-indigo-400">Ads Settings</a>.</li>
+                  <li>We use Google Analytics to understand traffic patterns and improve studio stability.</li>
+                </ul>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">3. Data Protection & Security</h3>
+                <p>We implement rigorous technical and organizational measures to safeguard your information. Your vocal fingerprints are encrypted and are not shared with any third-party marketing entities. Cloned identities are linked exclusively to the user who created them.</p>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">4. User Rights</h3>
+                <p>You have the right to access, rectify, or delete your data at any time. If you wish to purge your session history or vocal fingerprints, you may do so by contacting our support team below.</p>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">5. Contact Information</h3>
+                <p>For any inquiries regarding this policy or your personal data, please contact our Data Protection Officer at <strong>gavandinfluencecollective@gmail.com</strong>.</p>
              </div>
           </section>
         ) : currentView === 'terms' ? (
@@ -1364,25 +1396,22 @@ const App: React.FC = () => {
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
              </div>
              <div className="prose prose-invert max-w-none space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>By accessing Bella Voice AI, you agree to comply with and be bound by these Terms and Conditions. Please review them carefully.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Acceptance of Terms</h3>
-                <p>Your access to and use of the Service is conditioned on your acceptance of and compliance with these Terms. These Terms apply to all visitors, users, and others who access or use the Service.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Website Usage Rules</h3>
-                <p>You agree not to use the Service for any unlawful purpose or to solicit others to perform or participate in any unlawful acts. Misuse of voice cloning technology to impersonate individuals without consent is strictly prohibited.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Intellectual Property Notice</h3>
-                <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Bella Voice AI and its licensors. Our vocal profiles and synthesis engines are protected by copyright and trademark laws.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Limitation of Liability</h3>
-                <p>In no event shall Bella Voice AI, nor its directors, employees, or partners, be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Disclaimer of Warranties</h3>
-                <p>Your use of the Service is at your sole risk. The Service is provided on an "AS IS" and "AS AVAILABLE" basis. We do not warrant that the results obtained from the use of the service will be accurate or reliable.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">User Responsibility</h3>
-                <p>Users are solely responsible for the scripts provided and the resulting audio content generated. You must ensure you have the necessary rights to any text processed through our synthesis engines.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Service Availability</h3>
-                <p>We reserve the right to withdraw or amend our Service, and any service or material we provide via the Service, in our sole discretion without notice.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Changes to Terms</h3>
-                <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. What constitutes a material change will be determined at our sole discretion.</p>
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">Governing Law</h3>
-                <p>These Terms shall be governed and construed in accordance with the laws of the jurisdiction in which the company is registered, without regard to its conflict of law provisions.</p>
+                <p>Welcome to Bella Vox Studio. By accessing our platform, you agree to the following terms and conditions. These terms govern your use of our vocal synthesis and editing tools.</p>
+                
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">1. Service Usage & Ethics</h3>
+                <p>Our tools are designed for creative empowerment. You agree not to use our voice cloning or text-to-speech technology to impersonate individuals for deceptive purposes, to create deepfakes for harassment, or to generate content that violates local or international laws. We reserve the right to terminate access for users found in violation of these ethical guidelines.</p>
+                
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Intellectual Property</h3>
+                <p>All software, neural models, vocal profiles (except those uploaded by users), and the Bella Wave Editor interface are the exclusive property of Bella Voice AI. Users retain ownership of the scripts they provide and the resulting audio exports for commercial or personal use, provided they have the necessary rights to the underlying text.</p>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">3. Limitation of Liability</h3>
+                <p>Bella Vox Studio is provided "as is". While we strive for absolute accuracy in vocal synthesis, we do not warrant that the results will be error-free. We are not liable for any indirect or consequential damages arising from the use or inability to use our services.</p>
+
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">4. User Responsibility</h3>
+                <p>You are solely responsible for ensuring that the voice samples you upload for cloning are used with the permission of the original speaker. You must also ensure that the scripts processed do not infringe on any third-party copyrights or trademarks.</p>
+                
+                <h3 className="text-white font-bold uppercase tracking-wider text-xs">5. Modifications to Service</h3>
+                <p>We reserve the right to modify, suspend, or discontinue any part of the service at our discretion. Continued use of the platform after changes to these terms indicates your acceptance of the updated conditions.</p>
              </div>
           </section>
         ) : currentView === 'about' ? (
@@ -1391,39 +1420,39 @@ const App: React.FC = () => {
                 <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-indigo-500/20 mb-6">
                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 </div>
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">About Bella Voice AI</h2>
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">About Bella Vox Studio</h2>
                 <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-[10px]">The Future of Vocal Synthesis</p>
              </div>
              <div className="max-w-2xl mx-auto space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>Bella Voice AI was founded with a single mission: to bridge the gap between artificial speech and human emotion. We believe that technology should not just speak, but perform.</p>
-                <p>Our platform focuses on state-of-the-art AI audio technology, providing creators with tools for high-fidelity voice cloning, neural script analysis, and precision wave editing. Whether you are a documentary narrator or a content creator, we provide the vocal identity you need.</p>
-                <p>We are committed to quality, user experience, and ethical AI. Our systems are built to preserve the unique characteristics of the human voice while providing unprecedented control over performance vibes.</p>
+                <p>Bella Vox Studio is a premier digital audio laboratory dedicated to the art and science of vocal expression. Our mission is to bridge the gap between human emotion and artificial intelligence by providing creators with high-fidelity, studio-grade vocal synthesis tools.</p>
+                <p>Founded by the <strong>Gavand Influence Collective</strong>, we have developed a dual-environment studio that combines neural voice generation with a comprehensive spectral editor. We serve a global community of podcasters, authors, and content creators who require more than just synthetic speech—they require a performance.</p>
+                <p>Our commitment is rooted in three pillars: <strong>Emotional Fidelity</strong>, ensuring every voice carries weight and nuance; <strong>Professional Mastering</strong>, providing tools to refine audio for broadcast; and <strong>Ethical Innovation</strong>, maintaining a secure environment for voice cloning and data privacy.</p>
              </div>
              <button onClick={() => setCurrentView('main')} className="mt-8 px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Explore the Studio</button>
           </section>
         ) : (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-2xl mx-auto space-y-8">
              <div className="text-center space-y-4">
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Contact Us</h2>
-                <p className="text-slate-500 text-sm italic">Have questions? Our studio team is here to help.</p>
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Contact Our Studio</h2>
+                <p className="text-slate-500 text-sm italic">Have questions about our technology or compliance? We are here to help.</p>
              </div>
              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Your Identity</label>
-                   <input type="text" placeholder="Name" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                   <input type="text" placeholder="Your Name" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
                 </div>
                 <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Secure Email</label>
-                   <input type="email" placeholder="email@studio.com" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Business Email</label>
+                   <input type="email" placeholder="email@company.com" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
                 </div>
                 <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Message Inquiry</label>
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Your Message</label>
                    <textarea placeholder="How can we assist your creative vision?" className="w-full h-32 bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors resize-none custom-scrollbar" />
                 </div>
-                <button className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Transmit Message</button>
+                <button className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Send Transmission</button>
                 <div className="pt-6 border-t border-slate-800 text-center">
-                   <p className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">Support Email: <span className="text-indigo-400">gavandinfluencecollective@gmail.com</span></p>
-                   <button onClick={() => setCurrentView('main')} className="mt-6 text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest transition-colors">Return to Console</button>
+                   <p className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">Official Inquiries: <span className="text-indigo-400">gavandinfluencecollective@gmail.com</span></p>
+                   <button onClick={() => setCurrentView('main')} className="mt-6 text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest transition-colors">Back to Dashboard</button>
                 </div>
              </div>
           </section>
