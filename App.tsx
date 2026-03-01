@@ -7,7 +7,7 @@ import { analyzeTitleAndGenerate } from './services/aiService';
 import { VoiceOption } from './types';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog'>('main');
   const [clonedVoices, setClonedVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState(GEMINI_VOICES[0]);
   const [selectedVibe, setSelectedVibe] = useState(VIBES[0]);
@@ -927,6 +927,8 @@ const App: React.FC = () => {
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Information</label>
             <div className="flex flex-col gap-3">
                <button onClick={() => { setCurrentView('how-to-use'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">How to Use</button>
+               <button onClick={() => { setCurrentView('use-cases'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Use Cases</button>
+               <button onClick={() => { setCurrentView('blog'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Studio Blog</button>
                <button onClick={() => { setCurrentView('about'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">About Us</button>
                <button onClick={() => { setCurrentView('privacy'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Privacy Policy</button>
                <button onClick={() => { setCurrentView('terms'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Terms & Conditions</button>
@@ -1109,6 +1111,29 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-sm md:text-base leading-relaxed">
                       The core of our mission is to empower the "influence collective"—a community of professionals who understand that the nuance of a performance is just as vital as the words themselves. Whether you are seeking the authoritative weight of a cinematic documentary narrator or the raw, wavering vulnerability of a storyteller in a moment of crisis, Bella Vox Studio offers the tools to reach those depths. Our proprietary synthesis engine, powered by Gemini technology, ensures that every output is not just a digital reconstruction, but a digital twin of human performance.
                     </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-8">
+                      <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-3">
+                        <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                        </div>
+                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">Neural Cloning</h3>
+                        <p className="text-slate-500 text-xs leading-relaxed">Create a perfect digital twin of any voice with just 30 seconds of audio. Our neural mapping captures pitch, cadence, and unique vocal textures.</p>
+                      </div>
+                      <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-3">
+                        <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                        </div>
+                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">Wave Mastering</h3>
+                        <p className="text-slate-500 text-xs leading-relaxed">A professional-grade audio editor built into your browser. Normalize, reduce noise, and apply studio effects with zero latency.</p>
+                      </div>
+                      <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-3">
+                        <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                        </div>
+                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">Smart AI Draft</h3>
+                        <p className="text-slate-500 text-xs leading-relaxed">Stuck on a script? Our AI analyzes your title to generate a compelling narrative and automatically selects the perfect vocal vibe.</p>
+                      </div>
+                    </div>
                     <p className="text-slate-400 text-sm md:text-base leading-relaxed">
                       Beyond simple generation, the Bella Wave Editor introduces a revolutionary approach to audio mastering. In a professional workflow, the initial recording is only the beginning. Our integrated editor allows for spectral profiling, silence truncation, and neural noise reduction, ensuring that your final export is studio-grade and ready for immediate broadcast. We have integrated advanced features like the "Voice Consistency Lock" and "Listening Comfort Mode" to address the specific needs of long-form content creators, such as audiobook narrators, who require absolute tonal stability over hours of audio.
                     </p>
@@ -1298,6 +1323,100 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+        ) : currentView === 'blog' ? (
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Studio Blog & Insights</h2>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+             </div>
+             
+             <div className="space-y-12">
+                <article className="space-y-4">
+                   <div className="flex items-center gap-4 text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                      <span>March 2026</span>
+                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                      <span>AI Technology</span>
+                   </div>
+                   <h3 className="text-2xl font-bold text-white serif-title">The Evolution of Neural Voice Cloning</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">Voice cloning has moved from a futuristic concept to a professional reality. In this article, we explore how neural networks map the intricate textures of human speech and why 'vocal fingerprints' are the next frontier in digital identity. We discuss the transition from concatenative synthesis to modern neural models like Gemini, which allow for unprecedented emotional range and clarity.</p>
+                   <button className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors">Read Full Article →</button>
+                </article>
+
+                <article className="space-y-4">
+                   <div className="flex items-center gap-4 text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                      <span>February 2026</span>
+                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                      <span>Audio Mastering</span>
+                   </div>
+                   <h3 className="text-2xl font-bold text-white serif-title">Mastering Audio for the Modern Podcast</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">Great content deserves great sound. We break down the essentials of browser-based audio mastering, including the importance of silence reduction and spectral profiling. Learn how to use the Bella Wave Editor to achieve a 'radio-ready' sound without expensive hardware, focusing on peak normalization and noise floor management.</p>
+                   <button className="text-amber-400 text-[10px] font-bold uppercase tracking-widest hover:text-amber-300 transition-colors">Read Full Article →</button>
+                </article>
+
+                <article className="space-y-4">
+                   <div className="flex items-center gap-4 text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                      <span>January 2026</span>
+                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                      <span>Creative Strategy</span>
+                   </div>
+                   <h3 className="text-2xl font-bold text-white serif-title">Finding Your Brand's Digital Voice</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">In a world of digital noise, your brand's voice is its most identifiable asset. This guide helps you select the right vocal vibe for your project, whether it's the authoritative 'Documentary' tone or the high-energy 'Energetic Vlogger' style. We discuss the psychology of sound and how vocal textures influence listener trust and engagement.</p>
+                   <button className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:text-emerald-300 transition-colors">Read Full Article →</button>
+                </article>
+             </div>
+          </section>
+        ) : currentView === 'use-cases' ? (
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Professional Use Cases</h2>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4 p-8 bg-slate-950/40 rounded-[32px] border border-slate-800/50">
+                   <div className="text-2xl">🎙️</div>
+                   <h3 className="text-white font-bold text-lg">Podcasting & Narration</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">Create high-quality intro/outro segments or full-length narrations without expensive studio time. Our 'Documentary' and 'Radio' vibes provide the perfect professional polish for your audio content.</p>
+                </div>
+                <div className="space-y-4 p-8 bg-slate-950/40 rounded-[32px] border border-slate-800/50">
+                   <div className="text-2xl">📚</div>
+                   <h3 className="text-white font-bold text-lg">Audiobook Production</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">Maintain consistent vocal quality across hundreds of pages. Use the 'Voice Consistency Lock' to ensure your characters sound the same from chapter one to the conclusion.</p>
+                </div>
+                <div className="space-y-4 p-8 bg-slate-950/40 rounded-[32px] border border-slate-800/50">
+                   <div className="text-2xl">🎬</div>
+                   <h3 className="text-white font-bold text-lg">Video Content Creation</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">From YouTube explainers to cinematic trailers, Bella Vox provides the emotional range needed to keep viewers engaged. The 'Energetic Vlogger' and 'Historical Epic' vibes are tailored for visual storytelling.</p>
+                </div>
+                <div className="space-y-4 p-8 bg-slate-950/40 rounded-[32px] border border-slate-800/50">
+                   <div className="text-2xl">🏢</div>
+                   <h3 className="text-white font-bold text-lg">Corporate Training & E-Learning</h3>
+                   <p className="text-slate-400 text-sm leading-relaxed">Transform dry training manuals into engaging audio lessons. Our clear, authoritative voices make complex information easier to digest and retain for employees and students alike.</p>
+                </div>
+             </div>
+
+             <div className="p-10 bg-indigo-600/10 border border-indigo-500/20 rounded-[40px] space-y-6">
+                <h3 className="text-white font-bold text-xl serif-title">Why Choose Bella Vox for Your Project?</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                   <div className="flex gap-4">
+                      <div className="text-indigo-400 font-bold">01.</div>
+                      <p className="text-slate-400"><strong>Emotional Depth:</strong> Unlike standard TTS, our models understand the context and emotion of your script, delivering a performance that feels human.</p>
+                   </div>
+                   <div className="flex gap-4">
+                      <div className="text-indigo-400 font-bold">02.</div>
+                      <p className="text-slate-400"><strong>Studio Control:</strong> With the Bella Wave Editor, you have full control over the final sound, from noise reduction to spectral balancing.</p>
+                   </div>
+                   <div className="flex gap-4">
+                      <div className="text-indigo-400 font-bold">03.</div>
+                      <p className="text-slate-400"><strong>Rapid Iteration:</strong> Change a word, change a vibe, or swap a voice in seconds. No need to re-book talent or wait for revisions.</p>
+                   </div>
+                   <div className="flex gap-4">
+                      <div className="text-indigo-400 font-bold">04.</div>
+                      <p className="text-slate-400"><strong>Ethical Cloning:</strong> We prioritize the security of your vocal data, ensuring that your cloned voices remain your private intellectual property.</p>
+                   </div>
+                </div>
+             </div>
+          </section>
         ) : currentView === 'how-to-use' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1462,6 +1581,8 @@ const App: React.FC = () => {
       <footer className="relative z-[40] mt-auto py-12 border-t border-slate-900 flex flex-col items-center gap-8 text-center px-4">
         <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-[10px] md:text-[11px] font-bold uppercase tracking-[0.2em] md:tracking-[0.3em] text-slate-600">
            <button onClick={() => setCurrentView('how-to-use')} className="hover:text-indigo-400 transition-colors">How to Use</button>
+           <button onClick={() => setCurrentView('use-cases')} className="hover:text-indigo-400 transition-colors">Use Cases</button>
+           <button onClick={() => setCurrentView('blog')} className="hover:text-indigo-400 transition-colors">Blog</button>
            <button onClick={() => setCurrentView('about')} className="hover:text-indigo-400 transition-colors">About Us</button>
            <button onClick={() => setCurrentView('privacy')} className="hover:text-indigo-400 transition-colors">Privacy Policy</button>
            <button onClick={() => setCurrentView('terms')} className="hover:text-indigo-400 transition-colors">Terms & Conditions</button>
