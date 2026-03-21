@@ -20,6 +20,53 @@ const App: React.FC = () => {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   
+  // AD CONTROL: MutationObserver to remove unwanted ad elements
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof HTMLElement) {
+            // Check for elements containing "Download" or "Download Code"
+            // that are not part of our application's legitimate buttons
+            const textContent = node.textContent?.toLowerCase() || "";
+            const isAdLike = (
+              textContent.includes("download code") || 
+              (textContent.includes("download") && !node.closest('.ad-container-header') && !node.closest('.ad-container-footer') && !node.closest('#root'))
+            );
+            
+            // Also check for common ad-injected classes or styles
+            const hasAdStyle = node.style.position === 'fixed' && (parseInt(node.style.zIndex) > 10000 || node.style.zIndex === '2147483647');
+            
+            if (isAdLike || hasAdStyle) {
+              node.style.display = 'none';
+              node.remove();
+            }
+          }
+        });
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Periodic cleanup for elements that might have been missed or updated
+    const cleanupInterval = setInterval(() => {
+      const suspiciousElements = document.querySelectorAll('div, button, a, span');
+      suspiciousElements.forEach(el => {
+        if (el instanceof HTMLElement) {
+          const text = el.textContent?.toLowerCase() || "";
+          if ((text.includes("download code") || text === "download") && !el.closest('#root')) {
+            el.remove();
+          }
+        }
+      });
+    }, 2000);
+
+    return () => {
+      observer.disconnect();
+      clearInterval(cleanupInterval);
+    };
+  }, []);
+
   // New Studio Optimization States
   const [isListeningComfort, setIsListeningComfort] = useState(false);
   const [isVoiceConsistencyLock, setIsVoiceConsistencyLock] = useState(false);
@@ -878,8 +925,8 @@ const App: React.FC = () => {
     <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 flex flex-col gap-6 md:gap-10 text-slate-200 relative overflow-x-hidden">
       
       {/* Settings Drawer */}
-      {isDrawerOpen && <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100]" onClick={() => setIsDrawerOpen(false)} />}
-      <aside className={`fixed top-0 right-0 h-screen max-h-screen w-full max-w-xs md:w-80 bg-slate-900 border-l border-slate-800 z-[110] p-6 md:p-10 transition-transform duration-500 overflow-y-auto overscroll-contain custom-scrollbar ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      {isDrawerOpen && <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9998]" onClick={() => setIsDrawerOpen(false)} />}
+      <aside className={`fixed top-0 right-0 h-screen max-h-screen w-full max-w-xs md:w-80 bg-slate-900 border-l border-slate-800 z-[9999] p-6 md:p-10 transition-transform duration-500 overflow-y-auto overscroll-contain custom-scrollbar ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         
         {/* BRANDING HEADER - PREMIUM STUDIO STYLE */}
         <div className="mb-10 pt-2 pb-6 border-b border-slate-800/40 text-center">
@@ -990,6 +1037,12 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* AD PLACEMENT: IMMEDIATELY AFTER HEADER */}
+      <div className="ad-container-header w-full flex justify-center py-4 relative z-[55]">
+        <div className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mb-1">Advertisement</div>
+        {/* Ad script in head will handle delivery or user can place code here */}
+      </div>
 
       <main className="flex-grow relative z-[30]">
         {currentView === 'main' ? (
@@ -1322,6 +1375,12 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+            
+            {/* AD PLACEMENT: AFTER TTS TOOL / AUDIO OUTPUT */}
+            <div className="ad-container-footer w-full flex justify-center py-8 mt-10">
+              <div className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mb-1">Advertisement</div>
+              {/* Ad script in head will handle delivery or user can place code here */}
+            </div>
           </div>
         ) : currentView === 'blog' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
