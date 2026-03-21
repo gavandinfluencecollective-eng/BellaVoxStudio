@@ -43,7 +43,6 @@
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Babel added as requested for environment compatibility -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,13 +92,11 @@
             scrollbar-width: none;
         }
 
-        /* AD CONTROL: Block intrusive injected ad elements */
-        /* Target common ad-injected patterns while preserving app functionality */
+        /* AD CONTROL (FIXED) */
         div[style*="position: fixed"][style*="z-index: 2147483647"],
         div[style*="position: fixed"][style*="z-index: 999999"],
         div[style*="position: fixed"][style*="bottom: 0"][style*="left: 0"],
         div[style*="position: fixed"][style*="top: 0"][style*="left: 0"],
-        iframe[src*="pricklyassociation.com"]:not(.ad-container-header iframe):not(.ad-container-footer iframe),
         .ad-floating, .ad-popup, .ad-overlay, .ad-prompt {
             display: none !important;
             visibility: hidden !important;
@@ -110,7 +107,6 @@
             overflow: hidden !important;
         }
         
-        /* Ensure our designated ad containers remain functional if script uses them */
         .ad-container-header, .ad-container-footer {
             display: flex !important;
             visibility: visible !important;
@@ -119,6 +115,7 @@
             width: 100% !important;
         }
     </style>
+
 <script type="importmap">
 {
   "imports": {
@@ -131,6 +128,7 @@
   }
 }
 </script>
+
 <script>
 (function(kqcm){
 var d = document,
@@ -143,6 +141,7 @@ s.referrerPolicy = 'no-referrer-when-downgrade';
 l.parentNode.insertBefore(s, l);
 })({});
 </script>
+
 </head>
 <body>
     <div id="root"></div>
