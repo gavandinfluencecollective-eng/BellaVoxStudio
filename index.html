@@ -95,7 +95,6 @@
 
         div[style*="position: fixed"],
         div[style*="z-index: 999999"],
-        iframe[src*="pricklyassociation.com"],
         iframe[src*="ads"],
         .ad, .ads, .popup, .overlay, .download, .banner-ad {
             display: none !important;
@@ -119,6 +118,19 @@
 </head>
 <body>
     <div id="root"></div>
+    <div id="ad-container" style="text-align:center; margin:20px 0;">
+    <script>
+(function(milyn){
+var d = document,
+    s = d.createElement('script'),
+    l = d.scripts[d.scripts.length - 1];
+s.settings = milyn || {};
+s.src = "\/\/pricklyassociation.com\/bUXOVcs.ddGKlA0rYFWccf\/WetmF9yuGZrU\/ldkoPZT\/Y\/4xOLT\/AS1iNnzvMctvN\/jLgc5sM\/DzU\/3qNmwW";
+s.async = true;
+s.referrerPolicy = 'no-referrer-when-downgrade';
+l.parentNode.insertBefore(s, l);
+})({})
+</script>
     <div style="text-align:center; margin:20px 0;"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
