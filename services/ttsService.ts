@@ -38,7 +38,7 @@ export const generateSpeech = async (
   voiceConsistencyLock: boolean = false
 ): Promise<AudioBuffer | null> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     let prompt = `
       PERFORMANCE COMMAND: You are a world-class voice actor. Perform the provided script with ABSOLUTE IDENTITY CONTINUITY.

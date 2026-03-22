@@ -1040,7 +1040,6 @@ const App: React.FC = () => {
 
       {/* AD PLACEMENT: IMMEDIATELY AFTER HEADER */}
       <div className="ad-container-header w-full flex justify-center py-4 relative z-[55]">
-        <div className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mb-1">Advertisement</div>
         {/* Ad script in head will handle delivery or user can place code here */}
       </div>
 
@@ -1378,7 +1377,6 @@ const App: React.FC = () => {
             
             {/* AD PLACEMENT: AFTER TTS TOOL / AUDIO OUTPUT */}
             <div className="ad-container-footer w-full flex justify-center py-8 mt-10">
-              <div className="text-[10px] text-slate-700 font-bold uppercase tracking-widest mb-1">Advertisement</div>
               {/* Ad script in head will handle delivery or user can place code here */}
             </div>
           </div>

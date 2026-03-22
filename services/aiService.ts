@@ -15,7 +15,7 @@ export const analyzeTitleAndGenerate = async (title: string, existingVibeNames: 
 
   while (attempt <= maxRetries) {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
