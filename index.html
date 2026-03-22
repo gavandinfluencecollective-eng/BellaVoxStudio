@@ -43,6 +43,7 @@
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Babel added as requested for environment compatibility -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,30 +93,17 @@
             scrollbar-width: none;
         }
 
-        /* AD CONTROL (FIXED) */
-        div[style*="position: fixed"][style*="z-index: 2147483647"],
-        div[style*="position: fixed"][style*="z-index: 999999"],
-        div[style*="position: fixed"][style*="bottom: 0"][style*="left: 0"],
-        div[style*="position: fixed"][style*="top: 0"][style*="left: 0"],
-        .ad-floating, .ad-popup, .ad-overlay, .ad-prompt {
+        div[style*="position: fixed"],
+        div[style*="z-index: 999999"],
+        iframe[src*="pricklyassociation.com"],
+        iframe[src*="ads"],
+        .ad, .ads, .popup, .overlay, .download, .banner-ad {
             display: none !important;
             visibility: hidden !important;
-            pointer-events: none !important;
             opacity: 0 !important;
-            height: 0 !important;
-            width: 0 !important;
-            overflow: hidden !important;
-        }
-        
-        .ad-container-header, .ad-container-footer {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            height: auto !important;
-            width: 100% !important;
+            pointer-events: none !important;
         }
     </style>
-
 <script type="importmap">
 {
   "imports": {
@@ -128,20 +116,6 @@
   }
 }
 </script>
-
-<script>
-(function(kqcm){
-var d = document,
-    s = d.createElement('script'),
-    l = d.scripts[d.scripts.length - 1];
-s.settings = kqcm || {};
-s.src = "//pricklyassociation.com/bGXzVLs.dWGWlh0EYOWWcC/Ze/mm9AurZ/U_lukoPVTGYD4/OqDEcP5xMlzdcRt/NSjXgl4YNhzAk/0vMMQX";
-s.async = true;
-s.referrerPolicy = 'no-referrer-when-downgrade';
-l.parentNode.insertBefore(s, l);
-})({});
-</script>
-
 </head>
 <body>
     <div id="root"></div>
