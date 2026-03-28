@@ -258,53 +258,6 @@ const App: React.FC = () => {
     }
   };
   
-  // AD CONTROL: MutationObserver to remove unwanted ad elements
-  useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            // Check for elements containing "Download" or "Download Code"
-            // that are not part of our application's legitimate buttons
-            const textContent = node.textContent?.toLowerCase() || "";
-            const isAdLike = (
-              textContent.includes("download code") || 
-              (textContent.includes("download") && !node.closest('.ad-container-header') && !node.closest('.ad-container-footer') && !node.closest('#root'))
-            );
-            
-            // Also check for common ad-injected classes or styles
-            const hasAdStyle = node.style.position === 'fixed' && (parseInt(node.style.zIndex) > 10000 || node.style.zIndex === '2147483647');
-            
-            if (isAdLike || hasAdStyle) {
-              node.style.display = 'none';
-              node.remove();
-            }
-          }
-        });
-      });
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    // Periodic cleanup for elements that might have been missed or updated
-    const cleanupInterval = setInterval(() => {
-      const suspiciousElements = document.querySelectorAll('div, button, a, span');
-      suspiciousElements.forEach(el => {
-        if (el instanceof HTMLElement) {
-          const text = el.textContent?.toLowerCase() || "";
-          if ((text.includes("download code") || text === "download") && !el.closest('#root')) {
-            el.remove();
-          }
-        }
-      });
-    }, 2000);
-
-    return () => {
-      observer.disconnect();
-      clearInterval(cleanupInterval);
-    };
-  }, []);
-
   // New Studio Optimization States
   const [isListeningComfort, setIsListeningComfort] = useState(false);
   const [isVoiceConsistencyLock, setIsVoiceConsistencyLock] = useState(false);
@@ -1369,11 +1322,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* AD PLACEMENT: IMMEDIATELY AFTER HEADER */}
-      <div className="ad-container-header w-full flex justify-center py-4 relative z-[55]">
-        {/* Ad script in head will handle delivery or user can place code here */}
-      </div>
-
       <main className="flex-grow relative z-[30]">
         {/* PROFESSIONAL STUDIO NAVIGATION BAR */}
         <nav className="relative z-[55] w-full mb-6 md:mb-8">
@@ -1793,11 +1741,6 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {/* AD PLACEMENT: AFTER TTS TOOL / AUDIO OUTPUT */}
-            <div className="ad-container-footer w-full flex justify-center py-8 mt-10">
-              {/* Ad script in head will handle delivery or user can place code here */}
-            </div>
-
             {/* NEW SEO CONTENT SECTIONS */}
             <div className="max-w-6xl mx-auto px-4 space-y-24 py-20 border-t border-slate-900/50">
               {/* Features Section */}

@@ -41,10 +41,7 @@ export const TRUST_PAGES = {
       <h2>2. How We Use Your Information</h2>
       <p>We use the information we collect to provide, maintain, and improve our services. This includes generating synthetic speech, refining vocal clarity, and providing customer support.</p>
       
-      <h2>3. Advertising and Cookies</h2>
-      <p>Third-party vendors, including Google, use cookies to serve ads based on your prior visits to our website. Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and/or other sites on the Internet. You may opt out of personalized advertising by visiting <a href="https://www.google.com/settings/ads">Ads Settings</a>.</p>
-      
-      <h2>4. Data Security</h2>
+      <h2>3. Data Security</h2>
       <p>We implement rigorous technical and organizational measures to safeguard your information. Your vocal fingerprints are encrypted and are not shared with any third-party marketing entities.</p>
       
       <h2>5. Your Rights</h2>

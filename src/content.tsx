@@ -238,7 +238,7 @@ export const BLOG_POSTS = [
   },
   {
     title: "AI Voice for Small Businesses",
-    description: "How small businesses can use TTS for professional phone systems and ads.",
+    description: "How small businesses can use TTS for professional phone systems and internal communications.",
     keywords: ["business tools", "AI voice", "professional audio", "cost saving"]
   },
   {
@@ -273,8 +273,8 @@ export const BLOG_POSTS = [
   },
   {
     title: "How to Monetize Your AI Voice Content",
-    description: "A guide to AdSense approval and sponsorship for AI-driven channels.",
-    keywords: ["monetization", "AdSense", "content creation", "AI voice"]
+    description: "A guide to sponsorship and brand deals for AI-driven channels.",
+    keywords: ["monetization", "brand deals", "content creation", "AI voice"]
   },
   {
     title: "The Science of Neural Vocal Synthesis",
@@ -295,7 +295,7 @@ export const FAQS = [
   },
   {
     q: "Can I use the generated audio for commercial purposes?",
-    a: "Yes! Once you generate or master audio in BellaVox Studio, you own the rights to the export for use in YouTube videos, podcasts, ads, and more, provided you have the rights to the script used."
+    a: "Yes! Once you generate or master audio in BellaVox Studio, you own the rights to the export for use in YouTube videos, podcasts, and more, provided you have the rights to the script used."
   },
   {
     q: "How does the Bella Wave Editor work?",
@@ -354,15 +354,7 @@ export const TRUST_PAGES = {
           <li><strong>Usage Information:</strong> We collect non-identifiable technical data (browser type, device info) to optimize our performance and ensure studio stability.</li>
         </ul>
 
-        <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Advertising & Third-Party Services</h3>
-        <p><strong>Third-party vendors, including Google, use cookies to serve ads based on a user's prior visits to our website.</strong></p>
-        <ul className="list-disc pl-5 space-y-2">
-          <li>Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and/or other sites on the Internet.</li>
-          <li>Users may opt out of personalized advertising by visiting <a href="https://www.google.com/settings/ads" className="text-indigo-400" target="_blank" rel="noreferrer">Ads Settings</a>.</li>
-          <li>We use Google Analytics to understand traffic patterns and improve studio stability. This data is anonymized and does not include PII.</li>
-        </ul>
-
-        <h3 className="text-white font-bold uppercase tracking-wider text-xs">3. Data Protection & Security</h3>
+        <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Data Protection & Security</h3>
         <p>We implement rigorous technical and organizational measures to safeguard your information. Your vocal fingerprints are encrypted and are not shared with any third-party marketing entities. Cloned identities are linked exclusively to the user who created them.</p>
 
         <h3 className="text-white font-bold uppercase tracking-wider text-xs">4. User Rights</h3>
