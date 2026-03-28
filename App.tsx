@@ -29,7 +29,7 @@ import { TOOL_PAGE_CONTENT } from './src/constants/toolPageContent';
 
 // Firebase Imports
 import { auth, db, googleProvider } from './firebase';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const App: React.FC = () => {
@@ -48,8 +48,10 @@ const App: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
 
   // Admin & Contact States
+  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -68,10 +70,11 @@ const App: React.FC = () => {
 
   // Auth Listener with Role Check
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
-      if (user) {
+    const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser: any) => {
+      setUser(authenticatedUser);
+      if (authenticatedUser) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          const userDoc = await getDoc(doc(db, 'users', authenticatedUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             if (userData.role === 'admin') {
@@ -80,10 +83,10 @@ const App: React.FC = () => {
               setIsAdmin(false);
               if (currentView === 'admin') setCurrentView('main');
             }
-          } else if (user.email === ADMIN_EMAIL) {
+          } else if (authenticatedUser.email === ADMIN_EMAIL) {
             // Bootstrap default admin if not in collection
-            await setDoc(doc(db, 'users', user.uid), {
-              email: user.email,
+            await setDoc(doc(db, 'users', authenticatedUser.uid), {
+              email: authenticatedUser.email,
               role: 'admin'
             });
             setIsAdmin(true);
@@ -129,30 +132,40 @@ const App: React.FC = () => {
     e.preventDefault();
     setLoginError('');
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
-      const user = userCredential.user;
-      
-      // Check role immediately after login
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists() && userDoc.data().role === 'admin') {
-        setIsAdmin(true);
+      if (isSignUp) {
+        const userCredential = await createUserWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
+        const newUser = userCredential.user;
+        // Regular user by default
+        setIsAdmin(false);
         setIsLoginModalOpen(false);
-        setCurrentView('admin');
-      } else if (user.email === ADMIN_EMAIL) {
-        // Bootstrap default admin
-        await setDoc(doc(db, 'users', user.uid), {
-          email: user.email,
-          role: 'admin'
-        });
-        setIsAdmin(true);
-        setIsLoginModalOpen(false);
-        setCurrentView('admin');
+        setIsSignUp(false);
       } else {
-        setLoginError('Access denied. Admin role required.');
-        await signOut(auth);
+        const userCredential = await signInWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
+        const loggedInUser = userCredential.user;
+        
+        // Check role immediately after login
+        const userDoc = await getDoc(doc(db, 'users', loggedInUser.uid));
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAdmin(true);
+          setIsLoginModalOpen(false);
+          setCurrentView('admin');
+        } else if (loggedInUser.email === ADMIN_EMAIL) {
+          // Bootstrap default admin
+          await setDoc(doc(db, 'users', loggedInUser.uid), {
+            email: loggedInUser.email,
+            role: 'admin'
+          });
+          setIsAdmin(true);
+          setIsLoginModalOpen(false);
+          setCurrentView('admin');
+        } else {
+          // Just a regular user
+          setIsAdmin(false);
+          setIsLoginModalOpen(false);
+        }
       }
     } catch (error: any) {
-      setLoginError(error.message || 'Login failed');
+      setLoginError(error.message || 'Authentication failed');
     }
   };
 
@@ -160,26 +173,27 @@ const App: React.FC = () => {
     setLoginError('');
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      const loggedInUser = result.user;
       
       // Check if user is admin
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDoc = await getDoc(doc(db, 'users', loggedInUser.uid));
       if (userDoc.exists() && userDoc.data().role === 'admin') {
         setIsAdmin(true);
         setIsLoginModalOpen(false);
         setCurrentView('admin');
-      } else if (user.email === ADMIN_EMAIL) {
+      } else if (loggedInUser.email === ADMIN_EMAIL) {
         // Bootstrap default admin
-        await setDoc(doc(db, 'users', user.uid), {
-          email: user.email,
+        await setDoc(doc(db, 'users', loggedInUser.uid), {
+          email: loggedInUser.email,
           role: 'admin'
         });
         setIsAdmin(true);
         setIsLoginModalOpen(false);
         setCurrentView('admin');
       } else {
-        setLoginError('Access denied. Admin role required.');
-        await signOut(auth);
+        // Just a regular user
+        setIsAdmin(false);
+        setIsLoginModalOpen(false);
       }
     } catch (error: any) {
       setLoginError(error.message || 'Google Sign-In failed');
@@ -225,7 +239,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAdminLogout = async () => {
+  const handleLogout = async () => {
     await signOut(auth);
     setCurrentView('main');
   };
@@ -438,6 +452,10 @@ const App: React.FC = () => {
   };
 
   const handleSmartAnalyze = async () => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
     if (!scriptTitle || isAnalyzingTitle) return;
     setIsAnalyzingTitle(true);
     const result = await analyzeTitleAndGenerate(scriptTitle, VIBES.map(v => v.name));
@@ -944,6 +962,10 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
     if (isGenerating) return;
     stopPlayback();
     setIsGenerating(true);
@@ -962,6 +984,10 @@ const App: React.FC = () => {
   };
 
   const startRecording = async (isForClarity: boolean = false) => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -1027,6 +1053,10 @@ const App: React.FC = () => {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isForClarity: boolean = false) => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
     setIsAnalyzing(true);
@@ -1333,7 +1363,12 @@ const App: React.FC = () => {
               { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
               { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
               { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
-              { id: 'login', label: isAdmin ? 'Dashboard' : 'Login', icon: Lock, action: isAdmin ? () => setCurrentView('admin') : () => setIsLoginModalOpen(true) }
+              { 
+                id: 'login', 
+                label: isAdmin ? 'Dashboard' : (user ? 'Logout' : 'Login'), 
+                icon: user ? LogOut : Lock, 
+                action: isAdmin ? () => setCurrentView('admin') : (user ? handleLogout : () => setIsLoginModalOpen(true)) 
+              }
             ].map((item) => {
               const isActive = (item.id === 'editor' ? (currentView === 'main' && isEditorActive) : 
                                 item.id === 'main' ? (currentView === 'main' && !isEditorActive) :
@@ -1369,7 +1404,12 @@ const App: React.FC = () => {
                 { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
                 { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
                 { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
-                { id: 'login', label: isAdmin ? 'Admin' : 'Login', icon: Lock, action: isAdmin ? () => setCurrentView('admin') : () => setIsLoginModalOpen(true) }
+                { 
+                  id: 'login', 
+                  label: isAdmin ? 'Admin' : (user ? 'Logout' : 'Login'), 
+                  icon: user ? LogOut : Lock, 
+                  action: isAdmin ? () => setCurrentView('admin') : (user ? handleLogout : () => setIsLoginModalOpen(true)) 
+                }
               ].map((item) => {
                 const isActive = (item.id === 'editor' ? (currentView === 'main' && isEditorActive) : 
                                   item.id === 'main' ? (currentView === 'main' && !isEditorActive) :
@@ -1734,8 +1774,8 @@ const App: React.FC = () => {
                     )}
                   </div>
                   
-                  <button onClick={handleGenerate} disabled={script.trim() === '' || isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
-                    {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : 'Listen Now'}
+                  <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
+                    {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : (user ? 'Listen Now' : 'Login to Listen')}
                   </button>
                 </div>
               </div>
@@ -2052,7 +2092,7 @@ const App: React.FC = () => {
                 <p className="text-slate-500 text-sm">Managing BellaVox Studio operations.</p>
               </div>
               <div className="flex gap-4 w-full md:w-auto">
-                <button onClick={handleAdminLogout} className="flex-1 md:flex-none px-6 py-3 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+                <button onClick={handleLogout} className="flex-1 md:flex-none px-6 py-3 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
                   <LogOut size={14} /> Logout
                 </button>
               </div>
@@ -2299,19 +2339,19 @@ const App: React.FC = () => {
                 <div className="w-16 h-16 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto text-indigo-400">
                   <Lock size={32} />
                 </div>
-                <h2 className="text-2xl font-bold text-white serif-title">Admin Login</h2>
-                <p className="text-slate-500 text-sm">Restricted access for BellaVox Studio administrators.</p>
+                <h2 className="text-2xl font-bold text-white serif-title">{isSignUp ? 'Create Account' : 'Sign In'}</h2>
+                <p className="text-slate-500 text-sm">{isSignUp ? 'Join BellaVox Studio to create your own vocal clones.' : 'Access BellaVox Studio features and your private vocal clones.'}</p>
               </div>
 
               <form onSubmit={handleAdminLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Admin Email</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
                   <input 
                     type="email" 
                     required
                     value={adminEmailInput}
                     onChange={(e) => setAdminEmailInput(e.target.value)}
-                    placeholder="admin@bellavoxstudio.in" 
+                    placeholder="you@example.com" 
                     className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
                   />
                 </div>
@@ -2334,8 +2374,18 @@ const App: React.FC = () => {
                 )}
 
                 <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">
-                  Authenticate
+                  {isSignUp ? 'Create Account' : 'Authenticate'}
                 </button>
+
+                <div className="text-center">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors"
+                  >
+                    {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                  </button>
+                </div>
 
                 <div className="relative py-4">
                   <div className="absolute inset-0 flex items-center">
