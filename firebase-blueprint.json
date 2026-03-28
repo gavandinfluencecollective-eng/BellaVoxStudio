@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "contact_messages": {
+      "title": "Contact Messages",
+      "description": "Messages submitted via the Contact Us form.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full name of the sender."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the sender."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the sender."
+        },
+        "message": {
+          "type": "string",
+          "description": "The message content."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the message was sent."
+        }
+      },
+      "required": ["name", "email", "phone", "message", "createdAt"]
+    },
+    "users": {
+      "title": "Users",
+      "description": "Application users with roles.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's email address."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "User's role."
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/contact_messages/{messageId}": {
+      "schema": "contact_messages",
+      "description": "Collection of contact messages."
+    },
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Collection of users and their roles."
+    }
+  }
+}

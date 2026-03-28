@@ -1,13 +1,40 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  Home, 
+  Info, 
+  Shield, 
+  FileText, 
+  Mail, 
+  BookOpen, 
+  Lightbulb, 
+  Settings, 
+  X,
+  ChevronRight,
+  Activity,
+  Waves,
+  Lock,
+  Trash2,
+  LogOut
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { GEMINI_VOICES, VIBES } from './constants';
 import { generateSpeech } from './services/ttsService';
 import { analyzeVoice } from './services/voiceCloningService';
 import { analyzeTitleAndGenerate } from './services/aiService';
 import { VoiceOption } from './types';
+import { MAIN_ARTICLES, BLOG_POSTS } from './src/constants/seoContent';
+import { TRUST_PAGES } from './src/constants/trustPages';
+import { TOOL_PAGE_CONTENT } from './src/constants/toolPageContent';
+
+// Firebase Imports
+import { auth, db, googleProvider } from './firebase';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog' | 'article' | 'admin'>('main');
+  const [selectedArticle, setSelectedArticle] = useState<string | null>(null);
   const [clonedVoices, setClonedVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState(GEMINI_VOICES[0]);
   const [selectedVibe, setSelectedVibe] = useState(VIBES[0]);
@@ -19,6 +46,217 @@ const App: React.FC = () => {
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Admin & Contact States
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [contactMessages, setContactMessages] = useState<any[]>([]);
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const [contactSuccess, setContactSuccess] = useState(false);
+
+  // Multi-Admin Management States
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminTab, setAdminTab] = useState<'messages' | 'admins'>('messages');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [isAdminActionLoading, setIsAdminActionLoading] = useState(false);
+
+  const ADMIN_EMAIL = 'gavandinfluencecollective@gmail.com';
+
+  // Auth Listener with Role Check
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.role === 'admin') {
+              setIsAdmin(true);
+            } else {
+              setIsAdmin(false);
+              if (currentView === 'admin') setCurrentView('main');
+            }
+          } else if (user.email === ADMIN_EMAIL) {
+            // Bootstrap default admin if not in collection
+            await setDoc(doc(db, 'users', user.uid), {
+              email: user.email,
+              role: 'admin'
+            });
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+            if (currentView === 'admin') setCurrentView('main');
+          }
+        } catch (error) {
+          console.error("Error checking user role:", error);
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+        if (currentView === 'admin') setCurrentView('main');
+      }
+    });
+    return () => unsubscribe();
+  }, [currentView]);
+
+  // Real-time Listeners for Admin Data
+  useEffect(() => {
+    if (!isAdmin || currentView !== 'admin') return;
+
+    const qMessages = query(collection(db, 'contact_messages'), orderBy('createdAt', 'desc'));
+    const unsubscribeMessages = onSnapshot(qMessages, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setContactMessages(messages);
+    });
+
+    const qAdmins = query(collection(db, 'users'));
+    const unsubscribeAdmins = onSnapshot(qAdmins, (snapshot) => {
+      const admins = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAdminUsers(admins);
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeAdmins();
+    };
+  }, [isAdmin, currentView]);
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
+      const user = userCredential.user;
+      
+      // Check role immediately after login
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().role === 'admin') {
+        setIsAdmin(true);
+        setIsLoginModalOpen(false);
+        setCurrentView('admin');
+      } else if (user.email === ADMIN_EMAIL) {
+        // Bootstrap default admin
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email,
+          role: 'admin'
+        });
+        setIsAdmin(true);
+        setIsLoginModalOpen(false);
+        setCurrentView('admin');
+      } else {
+        setLoginError('Access denied. Admin role required.');
+        await signOut(auth);
+      }
+    } catch (error: any) {
+      setLoginError(error.message || 'Login failed');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoginError('');
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Check if user is admin
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().role === 'admin') {
+        setIsAdmin(true);
+        setIsLoginModalOpen(false);
+        setCurrentView('admin');
+      } else if (user.email === ADMIN_EMAIL) {
+        // Bootstrap default admin
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email,
+          role: 'admin'
+        });
+        setIsAdmin(true);
+        setIsLoginModalOpen(false);
+        setCurrentView('admin');
+      } else {
+        setLoginError('Access denied. Admin role required.');
+        await signOut(auth);
+      }
+    } catch (error: any) {
+      setLoginError(error.message || 'Google Sign-In failed');
+    }
+  };
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminEmail || isAdminActionLoading) return;
+    setIsAdminActionLoading(true);
+    try {
+      // In a real app, you'd probably use a Cloud Function to create the user in Auth too.
+      // For this demo, we assume the user will sign up or be created elsewhere, 
+      // or we just track the email for role assignment.
+      // Since signup is disabled, we'll just add the email to the users collection.
+      // Note: The security rules will only allow an admin to do this.
+      
+      // We'll use a random ID or the email as ID if we don't have a UID yet.
+      // Better to use a collection query to find if user exists, but for simplicity:
+      await addDoc(collection(db, 'users'), {
+        email: newAdminEmail,
+        role: 'admin'
+      });
+      setNewAdminEmail('');
+    } catch (error: any) {
+      console.error("Error adding admin:", error);
+      alert("Failed to add admin. Check console for details.");
+    } finally {
+      setIsAdminActionLoading(false);
+    }
+  };
+
+  const handleRemoveAdmin = async (id: string, email: string) => {
+    if (email === ADMIN_EMAIL) {
+      alert("Cannot remove the default super admin.");
+      return;
+    }
+    if (!confirm(`Are you sure you want to remove ${email} from admins?`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (error) {
+      console.error("Error removing admin:", error);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    await signOut(auth);
+    setCurrentView('main');
+  };
+
+  const handleDeleteMessage = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this message?")) return;
+    try {
+      await deleteDoc(doc(db, 'contact_messages', id));
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name || !contactForm.email || !contactForm.phone || !contactForm.message) return;
+    setIsSubmittingContact(true);
+    try {
+      await addDoc(collection(db, 'contact_messages'), {
+        ...contactForm,
+        createdAt: serverTimestamp()
+      });
+      setContactSuccess(true);
+      setContactForm({ name: '', email: '', phone: '', message: '' });
+      setTimeout(() => setContactSuccess(false), 5000);
+    } catch (error) {
+      console.error("Error submitting contact form:", error);
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
   
   // AD CONTROL: MutationObserver to remove unwanted ad elements
   useEffect(() => {
@@ -922,18 +1160,21 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 flex flex-col gap-6 md:gap-10 text-slate-200 relative overflow-x-hidden">
+    <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 pb-24 lg:pb-10 flex flex-col gap-6 md:gap-10 text-slate-200 relative overflow-x-hidden">
       
       {/* Settings Drawer */}
       {isDrawerOpen && <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9998]" onClick={() => setIsDrawerOpen(false)} />}
       <aside className={`fixed top-0 right-0 h-screen max-h-screen w-full max-w-xs md:w-80 bg-slate-900 border-l border-slate-800 z-[9999] p-6 md:p-10 transition-transform duration-500 overflow-y-auto overscroll-contain custom-scrollbar ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         
         {/* BRANDING HEADER - PREMIUM STUDIO STYLE */}
-        <div className="mb-10 pt-2 pb-6 border-b border-slate-800/40 text-center">
-          <span className="text-[10px] font-extrabold text-indigo-400/90 uppercase tracking-[0.4em] select-none block">GAVAND INFLUENCE COLLECTIVE STUDIO</span>
+        <div className="flex justify-between items-center mb-10 pt-2 pb-6 border-b border-slate-800/40">
+          <span className="text-[12px] md:text-[14px] uppercase tracking-[0.5em] select-none shiny-text">GAVAND STUDIO</span>
+          <button onClick={() => setIsDrawerOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-500 hover:text-white">
+            <X size={18} />
+          </button>
         </div>
 
-        <h2 className="text-xl serif-title font-bold text-amber-50 mb-8 md:mb-12">Studio Settings</h2>
+        <h2 className="text-xl serif-title font-bold text-amber-50 mb-8 md:mb-12">SAMM Settings</h2>
         <div className="space-y-8 md:space-y-10">
           <div>
             <label className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-4 block">Advanced Mode</label>
@@ -971,15 +1212,100 @@ const App: React.FC = () => {
           </div>
 
           <div className="pt-6 border-t border-slate-800">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Information</label>
-            <div className="flex flex-col gap-3">
-               <button onClick={() => { setCurrentView('how-to-use'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">How to Use</button>
-               <button onClick={() => { setCurrentView('use-cases'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Use Cases</button>
-               <button onClick={() => { setCurrentView('blog'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Studio Blog</button>
-               <button onClick={() => { setCurrentView('about'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">About Us</button>
-               <button onClick={() => { setCurrentView('privacy'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Privacy Policy</button>
-               <button onClick={() => { setCurrentView('terms'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Terms & Conditions</button>
-               <button onClick={() => { setCurrentView('contact'); setIsDrawerOpen(false); }} className="w-full py-3 px-4 bg-slate-950/50 border border-slate-800 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-800 text-left transition-colors">Contact Us</button>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Studio Navigation</label>
+            <div className="flex flex-col gap-2">
+               <button 
+                 onClick={() => { setCurrentView('main'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'main' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <Home size={14} />
+                   <span>Studio Home</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'main' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('how-to-use'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'how-to-use' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <BookOpen size={14} />
+                   <span>How to Use</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'how-to-use' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('use-cases'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'use-cases' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <Lightbulb size={14} />
+                   <span>Use Cases</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'use-cases' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('blog'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'blog' || currentView === 'article' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <FileText size={14} />
+                   <span>Studio Blog</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'blog' || currentView === 'article' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-800">
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Company & Legal</label>
+            <div className="flex flex-col gap-2">
+               <button 
+                 onClick={() => { setCurrentView('about'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'about' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <Info size={14} />
+                   <span>About Us</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'about' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('privacy'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'privacy' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <Shield size={14} />
+                   <span>Privacy Policy</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'privacy' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('terms'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'terms' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <FileText size={14} />
+                   <span>Terms & Conditions</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'terms' ? 'opacity-100' : 'opacity-0'} />
+               </button>
+
+               <button 
+                 onClick={() => { setCurrentView('contact'); setIsDrawerOpen(false); }} 
+                 className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase flex items-center justify-between transition-all ${currentView === 'contact' ? 'bg-indigo-600 text-white' : 'bg-slate-950/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   <Mail size={14} />
+                   <span>Contact Us</span>
+                 </div>
+                 <ChevronRight size={12} className={currentView === 'contact' ? 'opacity-100' : 'opacity-0'} />
+               </button>
             </div>
           </div>
         </div>
@@ -1026,14 +1352,19 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+
         <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto overflow-x-auto no-scrollbar py-1">
           <button onClick={() => { setTutorialStep(0); setIsTutorialOpen(true); }} className="whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[9px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-widest transition-all flex items-center gap-2 md:gap-3 group">
             <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-indigo-400 rounded-full animate-pulse group-hover:scale-125 transition-transform" />
             Cloning Guide
           </button>
-          <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap p-3 md:p-4 hover:bg-white/5 rounded-2xl transition-all flex items-center gap-2 md:gap-3 border border-transparent hover:border-slate-800 group">
-            <span className="text-[10px] md:text-xs font-bold text-slate-500 group-hover:text-slate-200 uppercase tracking-widest">Control Center</span>
-            <div className="space-y-1 w-5"><div className="h-0.5 bg-slate-400 group-hover:bg-amber-400 transition-colors"/><div className="h-0.5 bg-slate-400 group-hover:bg-amber-400 transition-colors"/><div className="h-0.5 bg-slate-400 group-hover:bg-amber-400 transition-colors"/></div>
+          <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap px-4 md:px-6 py-2 md:py-3 bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all flex items-center gap-2 md:gap-4 group shadow-lg backdrop-blur-md">
+            <span className="text-[10px] md:text-xs font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">SAMM</span>
+            <div className="space-y-1 w-5">
+              <div className="h-0.5 w-full bg-indigo-400 group-hover:bg-amber-400 transition-all duration-300 group-hover:translate-x-1"/>
+              <div className="h-0.5 w-3/4 bg-indigo-400 group-hover:bg-amber-400 transition-all duration-300"/>
+              <div className="h-0.5 w-full bg-indigo-400 group-hover:bg-amber-400 transition-all duration-300 group-hover:-translate-x-1"/>
+            </div>
           </button>
         </div>
       </header>
@@ -1044,6 +1375,93 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-grow relative z-[30]">
+        {/* PROFESSIONAL STUDIO NAVIGATION BAR */}
+        <nav className="relative z-[55] w-full mb-6 md:mb-8">
+          {/* Desktop Navigation - Sleek Top Bar */}
+          <div className="hidden md:flex sticky top-0 bg-slate-950/80 backdrop-blur-2xl border-b border-white/5 py-4 justify-center items-center gap-12 px-6 w-full">
+            {[
+              { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
+              { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
+              { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
+              { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
+              { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
+              { id: 'login', label: isAdmin ? 'Dashboard' : 'Login', icon: Lock, action: isAdmin ? () => setCurrentView('admin') : () => setIsLoginModalOpen(true) }
+            ].map((item) => {
+              const isActive = (item.id === 'editor' ? (currentView === 'main' && isEditorActive) : 
+                                item.id === 'main' ? (currentView === 'main' && !isEditorActive) :
+                                (currentView === item.id || (item.id === 'blog' && currentView === 'article')));
+              return (
+                <button
+                  key={item.id}
+                  onClick={item.action}
+                  className={`flex items-center gap-3 text-[11px] font-extrabold uppercase tracking-[0.25em] transition-all duration-300 relative group ${
+                    isActive ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-200'
+                  }`}
+                >
+                  <item.icon size={14} className={`transition-colors duration-300 ${isActive ? 'text-indigo-400' : 'text-slate-600 group-hover:text-indigo-400'}`} />
+                  <span>{item.label}</span>
+                  {isActive && (
+                    <motion.div 
+                      layoutId="desktop-nav-underline"
+                      className="absolute -bottom-2 left-0 right-0 h-0.5 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.6)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mobile Navigation - Unique Floating Bottom Dock */}
+          <div className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md">
+            <div className="bg-slate-950/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] px-2 py-2 flex justify-around items-center shadow-[0_20px_50px_rgba(0,0,0,0.8)] ring-1 ring-white/5">
+              {[
+                { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
+                { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
+                { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
+                { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
+                { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
+                { id: 'login', label: isAdmin ? 'Admin' : 'Login', icon: Lock, action: isAdmin ? () => setCurrentView('admin') : () => setIsLoginModalOpen(true) }
+              ].map((item) => {
+                const isActive = (item.id === 'editor' ? (currentView === 'main' && isEditorActive) : 
+                                  item.id === 'main' ? (currentView === 'main' && !isEditorActive) :
+                                  (currentView === item.id || (item.id === 'blog' && currentView === 'article')));
+                return (
+                  <motion.button
+                    key={item.id}
+                    onClick={item.action}
+                    whileTap={{ scale: 0.85 }}
+                    className="relative flex flex-col items-center justify-center py-2 px-3 transition-all duration-300"
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="mobile-nav-pill"
+                        className="absolute inset-0 bg-white/5 rounded-3xl border border-white/10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <div className={`relative z-10 transition-all duration-500 ${isActive ? 'scale-110 -translate-y-1' : 'scale-100'}`}>
+                      <item.icon 
+                        size={22} 
+                        className={`transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-500'}`} 
+                      />
+                      {isActive && (
+                        <motion.div 
+                          layoutId="active-glow"
+                          className="absolute inset-0 bg-indigo-500/40 blur-xl rounded-full -z-10" 
+                        />
+                      )}
+                    </div>
+                    <span className={`relative z-10 text-[7px] font-black uppercase tracking-[0.2em] mt-1.5 transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                      {item.label}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
+
         {currentView === 'main' ? (
           <div className="pb-40">
             {!isEditorActive ? (
@@ -1379,6 +1797,97 @@ const App: React.FC = () => {
             <div className="ad-container-footer w-full flex justify-center py-8 mt-10">
               {/* Ad script in head will handle delivery or user can place code here */}
             </div>
+
+            {/* NEW SEO CONTENT SECTIONS */}
+            <div className="max-w-6xl mx-auto px-4 space-y-24 py-20 border-t border-slate-900/50">
+              {/* Features Section */}
+              <section id="features" className="space-y-12">
+                <div className="text-center space-y-4">
+                  <h2 className="text-3xl md:text-5xl serif-title font-bold text-white">Features of BellaVox AI</h2>
+                  <p className="text-slate-500 text-sm md:text-base max-w-2xl mx-auto">Discover the cutting-edge technology that makes our vocal synthesis the most realistic on the market.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {TOOL_PAGE_CONTENT.features.map((feature, idx) => (
+                    <div key={idx} className="p-8 glass rounded-[32px] border border-slate-800/50 space-y-4 hover:border-indigo-500/30 transition-colors">
+                      <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center text-indigo-400 font-bold">{idx + 1}</div>
+                      <h3 className="text-white font-bold text-xl">{feature.title}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed">{feature.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* How to Use Section */}
+              <section id="how-to" className="space-y-12">
+                <div className="text-center space-y-4">
+                  <h2 className="text-3xl md:text-5xl serif-title font-bold text-white">How to Use BellaVox AI</h2>
+                  <p className="text-slate-500 text-sm md:text-base max-w-2xl mx-auto">Get started with professional voice synthesis in five simple steps.</p>
+                </div>
+                <div className="relative">
+                  <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-slate-800 -translate-y-1/2 z-0" />
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-8 relative z-10">
+                    {TOOL_PAGE_CONTENT.howToUse.map((step, idx) => (
+                      <div key={idx} className="bg-slate-950 p-6 rounded-[32px] border border-slate-800 text-center space-y-4">
+                        <div className="w-10 h-10 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center mx-auto font-bold text-sm">{step.step}</div>
+                        <h3 className="text-white font-bold text-sm uppercase tracking-wider">{step.title}</h3>
+                        <p className="text-slate-500 text-xs leading-relaxed">{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              {/* Benefits Section */}
+              <section id="benefits" className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                <div className="space-y-8">
+                  <h2 className="text-3xl md:text-5xl serif-title font-bold text-white">Benefits of AI Voice Generator</h2>
+                  <div className="space-y-6">
+                    {TOOL_PAGE_CONTENT.benefits.map((benefit, idx) => (
+                      <div key={idx} className="flex gap-6">
+                        <div className="shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} /></svg>
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-white font-bold">{benefit.title}</h3>
+                          <p className="text-slate-400 text-sm">{benefit.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="glass rounded-[40px] p-8 border border-slate-800/50 aspect-square flex items-center justify-center relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="text-center space-y-4 relative z-10">
+                    <div className="text-6xl mb-6">🚀</div>
+                    <p className="text-white font-bold text-2xl serif-title">Ready to transform your content?</p>
+                    <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all">Start Generating Now</button>
+                  </div>
+                </div>
+              </section>
+
+              {/* FAQ Section */}
+              <section id="faq" className="max-w-3xl mx-auto space-y-12">
+                <div className="text-center space-y-4">
+                  <h2 className="text-3xl md:text-5xl serif-title font-bold text-white">Frequently Asked Questions</h2>
+                  <p className="text-slate-500 text-sm">Everything you need to know about BellaVox AI.</p>
+                </div>
+                <div className="space-y-4">
+                  {TOOL_PAGE_CONTENT.faqs.map((faq, idx) => (
+                    <details key={idx} className="group glass rounded-3xl border border-slate-800/50 overflow-hidden transition-all hover:border-slate-700">
+                      <summary className="flex items-center justify-between p-6 cursor-pointer list-none">
+                        <span className="text-white font-bold text-sm md:text-base">{faq.question}</span>
+                        <span className="text-slate-500 transition-transform group-open:rotate-180">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                        </span>
+                      </summary>
+                      <div className="px-6 pb-6 text-slate-400 text-sm leading-relaxed animate-in slide-in-from-top-2 duration-300">
+                        {faq.answer}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            </div>
           </div>
         ) : currentView === 'blog' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
@@ -1387,39 +1896,69 @@ const App: React.FC = () => {
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
              </div>
              
-             <div className="space-y-12">
-                <article className="space-y-4">
-                   <div className="flex items-center gap-4 text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
-                      <span>March 2026</span>
-                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
-                      <span>AI Technology</span>
-                   </div>
-                   <h3 className="text-2xl font-bold text-white serif-title">The Evolution of Neural Voice Cloning</h3>
-                   <p className="text-slate-400 text-sm leading-relaxed">Voice cloning has moved from a futuristic concept to a professional reality. In this article, we explore how neural networks map the intricate textures of human speech and why 'vocal fingerprints' are the next frontier in digital identity. We discuss the transition from concatenative synthesis to modern neural models like Gemini, which allow for unprecedented emotional range and clarity.</p>
-                   <button className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors">Read Full Article →</button>
-                </article>
+             <div className="space-y-16">
+                {/* Featured Articles */}
+                <div className="space-y-8">
+                  <h3 className="text-indigo-400 font-bold uppercase tracking-[0.3em] text-[10px] border-b border-slate-800 pb-4">Featured Articles</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {MAIN_ARTICLES.map((article) => (
+                      <article key={article.id} className="space-y-4 p-6 glass rounded-3xl border border-slate-800/50 hover:border-indigo-500/30 transition-all group">
+                        <h3 className="text-xl font-bold text-white serif-title group-hover:text-indigo-400 transition-colors">{article.title}</h3>
+                        <p className="text-slate-400 text-sm line-clamp-3 leading-relaxed">Discover the depth of {article.title.toLowerCase()} in our comprehensive guide designed for creators and professionals.</p>
+                        <button 
+                          onClick={() => { setSelectedArticle(article.id); setCurrentView('article'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                          className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors"
+                        >
+                          Read Full Guide →
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </div>
 
-                <article className="space-y-4">
-                   <div className="flex items-center gap-4 text-[10px] font-bold text-amber-400 uppercase tracking-widest">
-                      <span>February 2026</span>
-                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
-                      <span>Audio Mastering</span>
-                   </div>
-                   <h3 className="text-2xl font-bold text-white serif-title">Mastering Audio for the Modern Podcast</h3>
-                   <p className="text-slate-400 text-sm leading-relaxed">Great content deserves great sound. We break down the essentials of browser-based audio mastering, including the importance of silence reduction and spectral profiling. Learn how to use the Bella Wave Editor to achieve a 'radio-ready' sound without expensive hardware, focusing on peak normalization and noise floor management.</p>
-                   <button className="text-amber-400 text-[10px] font-bold uppercase tracking-widest hover:text-amber-300 transition-colors">Read Full Article →</button>
-                </article>
+                {/* Blog Posts */}
+                <div className="space-y-8">
+                  <h3 className="text-amber-400 font-bold uppercase tracking-[0.3em] text-[10px] border-b border-slate-800 pb-4">Latest Insights</h3>
+                  <div className="grid grid-cols-1 gap-10">
+                    {BLOG_POSTS.map((post, idx) => (
+                      <article key={idx} className="space-y-4 border-b border-slate-900 pb-10 last:border-0">
+                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          <span>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                          <div className="w-1 h-1 bg-slate-800 rounded-full" />
+                          <span className="text-amber-500/70">{post.keywords.split(',')[0]}</span>
+                        </div>
+                        <h3 className="text-2xl font-bold text-white serif-title">{post.title}</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">{post.description}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {post.keywords.split(',').map((kw, kidx) => (
+                            <span key={kidx} className="px-2 py-1 bg-slate-950 text-[9px] text-slate-600 rounded-md border border-slate-900 uppercase font-bold tracking-tighter">{kw.trim()}</span>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+             </div>
+          </section>
+        ) : currentView === 'article' ? (
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <button onClick={() => setCurrentView('blog')} className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                  Back to Blog
+                </button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+             </div>
+             
+             <div className="prose prose-invert max-w-none prose-headings:serif-title prose-h1:text-4xl md:prose-h1:text-5xl prose-h2:text-2xl prose-h2:text-indigo-400 prose-p:text-slate-400 prose-p:leading-relaxed prose-li:text-slate-400">
+                {selectedArticle && (
+                  <div dangerouslySetInnerHTML={{ __html: MAIN_ARTICLES.find(a => a.id === selectedArticle)?.content || '' }} />
+                )}
+             </div>
 
-                <article className="space-y-4">
-                   <div className="flex items-center gap-4 text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-                      <span>January 2026</span>
-                      <div className="w-1 h-1 bg-slate-700 rounded-full" />
-                      <span>Creative Strategy</span>
-                   </div>
-                   <h3 className="text-2xl font-bold text-white serif-title">Finding Your Brand's Digital Voice</h3>
-                   <p className="text-slate-400 text-sm leading-relaxed">In a world of digital noise, your brand's voice is its most identifiable asset. This guide helps you select the right vocal vibe for your project, whether it's the authoritative 'Documentary' tone or the high-energy 'Energetic Vlogger' style. We discuss the psychology of sound and how vocal textures influence listener trust and engagement.</p>
-                   <button className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:text-emerald-300 transition-colors">Read Full Article →</button>
-                </article>
+             <div className="pt-12 border-t border-slate-900 text-center">
+                <p className="text-slate-500 text-xs mb-6">Want to try this technology yourself?</p>
+                <button onClick={() => setCurrentView('main')} className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Launch BellaVox Studio</button>
              </div>
           </section>
         ) : currentView === 'use-cases' ? (
@@ -1529,107 +2068,246 @@ const App: React.FC = () => {
                 </div>
              </div>
           </section>
-        ) : currentView === 'privacy' ? (
+       ) : currentView === 'privacy' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Privacy Policy</h2>
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.privacy.title}</h2>
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
              </div>
-             <div className="prose prose-invert max-w-none space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>Last Updated: {new Date().toLocaleDateString()}</p>
-                <p>Welcome to Bella Voice AI. Your privacy is paramount to our mission. This Privacy Policy outlines our commitment to transparency and data security in compliance with global standards, including GDPR and CCPA.</p>
-                
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">1. Data Collection & Usage</h3>
-                <p>We provide advanced text-to-speech and neural voice cloning services. When you use our platform, we may collect:</p>
-                <ul className="list-disc pl-5 space-y-2">
-                  <li><strong>Voice Samples:</strong> Audio files uploaded or recorded for cloning are used solely to generate neural fingerprints. These are private to your session.</li>
-                  <li><strong>Text Scripts:</strong> Scripts entered into our synthesis engine are processed in real-time. We do not use your scripts for training public models.</li>
-                  <li><strong>Usage Information:</strong> We collect non-identifiable technical data (browser type, device info) to optimize our performance.</li>
-                </ul>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Advertising & Third-Party Services</h3>
-                <p><strong>Third-party vendors, including Google, use cookies to serve ads based on a user's prior visits to our website.</strong></p>
-                <ul className="list-disc pl-5 space-y-2">
-                  <li>Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and/or other sites on the Internet.</li>
-                  <li>Users may opt out of personalized advertising by visiting <a href="https://www.google.com/settings/ads" className="text-indigo-400">Ads Settings</a>.</li>
-                  <li>We use Google Analytics to understand traffic patterns and improve studio stability.</li>
-                </ul>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">3. Data Protection & Security</h3>
-                <p>We implement rigorous technical and organizational measures to safeguard your information. Your vocal fingerprints are encrypted and are not shared with any third-party marketing entities. Cloned identities are linked exclusively to the user who created them.</p>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">4. User Rights</h3>
-                <p>You have the right to access, rectify, or delete your data at any time. If you wish to purge your session history or vocal fingerprints, you may do so by contacting our support team below.</p>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">5. Contact Information</h3>
-                <p>For any inquiries regarding this policy or your personal data, please contact our Data Protection Officer at <strong>gavandinfluencecollective@gmail.com</strong>.</p>
+             <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm md:prose-p:text-base prose-p:leading-relaxed prose-li:text-slate-400 prose-li:text-sm">
+                <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.privacy.content }} />
              </div>
           </section>
         ) : currentView === 'terms' ? (
           <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Terms & Conditions</h2>
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.terms.title}</h2>
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
              </div>
-             <div className="prose prose-invert max-w-none space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>Welcome to Bella Vox Studio. By accessing our platform, you agree to the following terms and conditions. These terms govern your use of our vocal synthesis and editing tools.</p>
-                
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">1. Service Usage & Ethics</h3>
-                <p>Our tools are designed for creative empowerment. You agree not to use our voice cloning or text-to-speech technology to impersonate individuals for deceptive purposes, to create deepfakes for harassment, or to generate content that violates local or international laws. We reserve the right to terminate access for users found in violation of these ethical guidelines.</p>
-                
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">2. Intellectual Property</h3>
-                <p>All software, neural models, vocal profiles (except those uploaded by users), and the Bella Wave Editor interface are the exclusive property of Bella Voice AI. Users retain ownership of the scripts they provide and the resulting audio exports for commercial or personal use, provided they have the necessary rights to the underlying text.</p>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">3. Limitation of Liability</h3>
-                <p>Bella Vox Studio is provided "as is". While we strive for absolute accuracy in vocal synthesis, we do not warrant that the results will be error-free. We are not liable for any indirect or consequential damages arising from the use or inability to use our services.</p>
-
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">4. User Responsibility</h3>
-                <p>You are solely responsible for ensuring that the voice samples you upload for cloning are used with the permission of the original speaker. You must also ensure that the scripts processed do not infringe on any third-party copyrights or trademarks.</p>
-                
-                <h3 className="text-white font-bold uppercase tracking-wider text-xs">5. Modifications to Service</h3>
-                <p>We reserve the right to modify, suspend, or discontinue any part of the service at our discretion. Continued use of the platform after changes to these terms indicates your acceptance of the updated conditions.</p>
+             <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm md:prose-p:text-base prose-p:leading-relaxed prose-li:text-slate-400 prose-li:text-sm">
+                <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.terms.content }} />
              </div>
           </section>
         ) : currentView === 'about' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8 text-center">
-             <div className="space-y-4">
-                <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-indigo-500/20 mb-6">
-                   <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.about.title}</h2>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+             </div>
+             <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm md:prose-p:text-base prose-p:leading-relaxed prose-li:text-slate-400 prose-li:text-sm">
+                <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.about.content }} />
+             </div>
+             <div className="text-center pt-8">
+                <button onClick={() => setCurrentView('main')} className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Explore the Studio</button>
+             </div>
+          </section>
+        ) : currentView === 'admin' ? (
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-6xl mx-auto space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Admin Dashboard</h2>
+                <p className="text-slate-500 text-sm">Managing BellaVox Studio operations.</p>
+              </div>
+              <div className="flex gap-4 w-full md:w-auto">
+                <button onClick={handleAdminLogout} className="flex-1 md:flex-none px-6 py-3 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+                  <LogOut size={14} /> Logout
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-4 border-b border-slate-800 pb-4">
+              <button 
+                onClick={() => setAdminTab('messages')}
+                className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${adminTab === 'messages' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                Messages
+              </button>
+              <button 
+                onClick={() => setAdminTab('admins')}
+                className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${adminTab === 'admins' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                Admins
+              </button>
+            </div>
+
+            {adminTab === 'messages' ? (
+              <div className="overflow-x-auto custom-scrollbar rounded-3xl border border-slate-800 bg-slate-950/50">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800">
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Name</th>
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email</th>
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Phone</th>
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Message</th>
+                      <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {contactMessages.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-12 text-center text-slate-600 italic text-sm">No messages found in the database.</td>
+                      </tr>
+                    ) : (
+                      contactMessages.map((msg) => (
+                        <tr key={msg.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-6 text-xs text-slate-400 font-mono">
+                            {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Pending...'}
+                          </td>
+                          <td className="p-6 text-sm text-white font-bold">{msg.name}</td>
+                          <td className="p-6 text-sm text-indigo-400">{msg.email}</td>
+                          <td className="p-6 text-sm text-slate-400">{msg.phone}</td>
+                          <td className="p-6 text-sm text-slate-400 max-w-xs truncate" title={msg.message}>{msg.message}</td>
+                          <td className="p-6">
+                            <button 
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="p-2 text-slate-600 hover:text-red-500 transition-colors"
+                              title="Delete Entry"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <div className="glass p-8 rounded-3xl border border-indigo-500/10">
+                  <h3 className="text-white font-bold text-lg mb-6 serif-title">Add New Admin</h3>
+                  <form onSubmit={handleAddAdmin} className="flex flex-col md:flex-row gap-4">
+                    <input 
+                      type="email" 
+                      required
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      placeholder="Enter admin email address" 
+                      className="flex-grow bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                    />
+                    <button 
+                      type="submit"
+                      disabled={isAdminActionLoading}
+                      className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all disabled:opacity-50"
+                    >
+                      {isAdminActionLoading ? 'Adding...' : 'Assign Admin Role'}
+                    </button>
+                  </form>
                 </div>
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">About Bella Vox Studio</h2>
-                <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-[10px]">The Future of Vocal Synthesis</p>
-             </div>
-             <div className="max-w-2xl mx-auto space-y-6 text-slate-400 text-sm md:text-base leading-relaxed">
-                <p>Bella Vox Studio is a premier digital audio laboratory dedicated to the art and science of vocal expression. Our mission is to bridge the gap between human emotion and artificial intelligence by providing creators with high-fidelity, studio-grade vocal synthesis tools.</p>
-                <p>Founded by the <strong>Gavand Influence Collective</strong>, we have developed a dual-environment studio that combines neural voice generation with a comprehensive spectral editor. We serve a global community of podcasters, authors, and content creators who require more than just synthetic speech—they require a performance.</p>
-                <p>Our commitment is rooted in three pillars: <strong>Emotional Fidelity</strong>, ensuring every voice carries weight and nuance; <strong>Professional Mastering</strong>, providing tools to refine audio for broadcast; and <strong>Ethical Innovation</strong>, maintaining a secure environment for voice cloning and data privacy.</p>
-             </div>
-             <button onClick={() => setCurrentView('main')} className="mt-8 px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Explore the Studio</button>
+
+                <div className="overflow-x-auto custom-scrollbar rounded-3xl border border-slate-800 bg-slate-950/50">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800">
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Role</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {adminUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-6 text-sm text-white font-bold">{user.email}</td>
+                          <td className="p-6">
+                            <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase rounded-full border border-indigo-500/20">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="p-6">
+                            {user.email !== ADMIN_EMAIL && (
+                              <button 
+                                onClick={() => handleRemoveAdmin(user.id, user.email)}
+                                className="p-2 text-slate-600 hover:text-red-500 transition-colors"
+                                title="Remove Admin"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </section>
         ) : (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-2xl mx-auto space-y-8">
-             <div className="text-center space-y-4">
-                <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Contact Our Studio</h2>
-                <p className="text-slate-500 text-sm italic">Have questions about our technology or compliance? We are here to help.</p>
-             </div>
-             <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
-                   <input type="text" placeholder="Your Name" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-8">
+                   <div className="space-y-4">
+                      <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.contact.title}</h2>
+                      <p className="text-slate-500 text-sm italic">Have questions about our technology or compliance? We are here to help.</p>
+                   </div>
+                   <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm prose-p:leading-relaxed">
+                      <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.contact.content }} />
+                   </div>
                 </div>
-                <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Business Email</label>
-                   <input type="email" placeholder="email@company.com" className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
-                </div>
-                <div className="space-y-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Your Message</label>
-                   <textarea placeholder="How can we assist your creative vision?" className="w-full h-32 bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors resize-none custom-scrollbar" />
-                </div>
-                <button className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Send Transmission</button>
-                <div className="pt-6 border-t border-slate-800 text-center">
-                   <p className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">Official Inquiries: <span className="text-indigo-400">gavandinfluencecollective@gmail.com</span></p>
-                   <button onClick={() => setCurrentView('main')} className="mt-6 text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest transition-colors">Back to Dashboard</button>
-                </div>
+                <form onSubmit={handleContactSubmit} className="space-y-6">
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={contactForm.name}
+                        onChange={(e) => setContactForm({...contactForm, name: e.target.value})}
+                        placeholder="Your Name" 
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Business Email</label>
+                      <input 
+                        type="email" 
+                        required
+                        value={contactForm.email}
+                        onChange={(e) => setContactForm({...contactForm, email: e.target.value})}
+                        placeholder="email@company.com" 
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Phone Number</label>
+                      <input 
+                        type="tel" 
+                        required
+                        value={contactForm.phone}
+                        onChange={(e) => setContactForm({...contactForm, phone: e.target.value})}
+                        placeholder="+1 (555) 000-0000" 
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Your Message</label>
+                      <textarea 
+                        required
+                        value={contactForm.message}
+                        onChange={(e) => setContactForm({...contactForm, message: e.target.value})}
+                        placeholder="How can we help you?" 
+                        rows={5}
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors resize-none" 
+                      />
+                   </div>
+
+                   {contactSuccess && (
+                      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-green-500 text-xs font-bold text-center animate-in fade-in zoom-in duration-300">
+                        Transmission received successfully. Our team will contact you shortly.
+                      </div>
+                   )}
+
+                   <button 
+                    type="submit"
+                    disabled={isSubmittingContact}
+                    className={`w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20 ${isSubmittingContact ? 'opacity-50 cursor-wait' : ''}`}
+                   >
+                     {isSubmittingContact ? 'Sending...' : 'Send Transmission'}
+                   </button>
+                   <div className="pt-6 border-t border-slate-800 text-center">
+                      <button type="button" onClick={() => setCurrentView('main')} className="text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest transition-colors">Back to Dashboard</button>
+                   </div>
+                </form>
              </div>
           </section>
         )}
@@ -1648,8 +2326,101 @@ const App: React.FC = () => {
         <div className="space-y-2">
           <p className="text-[9px] text-slate-700 font-medium tracking-widest">GAVAND INFLUENCE COLLECTIVE STUDIO</p>
           <p className="text-[9px] text-slate-800 font-medium tracking-widest uppercase">&copy; {new Date().getFullYear()} BELLA VOICE AI. ALL RIGHTS RESERVED.</p>
+          <button 
+            onClick={isAdmin ? () => setCurrentView('admin') : () => setIsLoginModalOpen(true)} 
+            className="text-[8px] text-slate-900 hover:text-indigo-500 transition-colors uppercase font-bold tracking-widest mt-4"
+          >
+            {isAdmin ? 'Admin Dashboard' : 'Admin Access'}
+          </button>
         </div>
       </footer>
+
+      {/* Admin Login Modal */}
+      <AnimatePresence>
+        {isLoginModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl" 
+              onClick={() => setIsLoginModalOpen(false)} 
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="glass max-w-md w-full p-8 md:p-10 rounded-[40px] relative z-[210] border border-indigo-500/20 shadow-2xl"
+            >
+              <div className="text-center space-y-4 mb-8">
+                <div className="w-16 h-16 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto text-indigo-400">
+                  <Lock size={32} />
+                </div>
+                <h2 className="text-2xl font-bold text-white serif-title">Admin Login</h2>
+                <p className="text-slate-500 text-sm">Restricted access for BellaVox Studio administrators.</p>
+              </div>
+
+              <form onSubmit={handleAdminLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Admin Email</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={adminEmailInput}
+                    onChange={(e) => setAdminEmailInput(e.target.value)}
+                    placeholder="admin@bellavoxstudio.in" 
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={adminPasswordInput}
+                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                    placeholder="••••••••" 
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-xs font-bold text-center">
+                    {loginError}
+                  </div>
+                )}
+
+                <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">
+                  Authenticate
+                </button>
+
+                <div className="relative py-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-800"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                    <span className="bg-[#020617] px-4 text-slate-500 font-bold">Or continue with</span>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={handleGoogleLogin}
+                  className="w-full py-4 bg-white hover:bg-slate-100 text-slate-950 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Sign in with Google
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {isNoiseReductionOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6">
