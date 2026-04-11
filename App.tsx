@@ -33,8 +33,23 @@ import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopu
 import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog' | 'article' | 'admin'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog' | 'article' | 'blog-post' | 'admin'>('main');
   const [selectedArticle, setSelectedArticle] = useState<string | null>(null);
+  const [selectedBlogPost, setSelectedBlogPost] = useState<string | null>(null);
+  const [showCookieConsent, setShowCookieConsent] = useState(false);
+  
+  useEffect(() => {
+    const consent = localStorage.getItem('cookieConsent');
+    if (!consent) {
+      const timer = setTimeout(() => setShowCookieConsent(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleAcceptCookies = () => {
+    localStorage.setItem('cookieConsent', 'true');
+    setShowCookieConsent(false);
+  };
   const [clonedVoices, setClonedVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState(GEMINI_VOICES[0]);
   const [selectedVibe, setSelectedVibe] = useState(VIBES[0]);
@@ -1160,7 +1175,7 @@ const App: React.FC = () => {
         <h2 className="text-xl serif-title font-bold text-amber-50 mb-8 md:mb-12">SAMM Settings</h2>
         <div className="space-y-8 md:space-y-10">
           <div>
-            <label className="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-4 block">Advanced Mode</label>
+            <label className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-4 block">Advanced Mode</label>
             <div className="flex items-center justify-between p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl">
               <span className="text-sm font-medium">Audio Editor</span>
               <button onClick={() => setIsEditorActive(!isEditorActive)} className={`w-11 h-6 rounded-full relative transition-colors ${isEditorActive ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-slate-800'}`}>
@@ -1169,7 +1184,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Vocal FX</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 block">Vocal FX</label>
             <div className="flex items-center justify-between py-3">
               <span className="text-sm">Auto Vibe Sound FX</span>
               <button onClick={() => setAutoVibeFX(!autoVibeFX)} className={`w-11 h-6 rounded-full relative ${autoVibeFX ? 'bg-indigo-600' : 'bg-slate-800'}`}>
@@ -1179,7 +1194,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="pt-6 border-t border-slate-800">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Studio Tuning</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 block">Studio Tuning</label>
             <div className="flex items-center justify-between py-3">
               <span className="text-sm">Listening Comfort Mode</span>
               <button onClick={() => setIsListeningComfort(!isListeningComfort)} className={`w-11 h-6 rounded-full relative ${isListeningComfort ? 'bg-indigo-600' : 'bg-slate-800'}`}>
@@ -1195,7 +1210,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="pt-6 border-t border-slate-800">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Studio Navigation</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 block">Studio Navigation</label>
             <div className="flex flex-col gap-2">
                <button 
                  onClick={() => { setCurrentView('main'); setIsDrawerOpen(false); }} 
@@ -1244,7 +1259,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="pt-6 border-t border-slate-800">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 block">Company & Legal</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 block">Company & Legal</label>
             <div className="flex flex-col gap-2">
                <button 
                  onClick={() => { setCurrentView('about'); setIsDrawerOpen(false); }} 
@@ -1295,45 +1310,50 @@ const App: React.FC = () => {
       </aside>
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center py-2 md:py-4 gap-4 relative z-[60]">
-        <div>
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col gap-0.5">
-              <div 
-                className="flex items-center gap-2 cursor-pointer select-none group"
-                onClick={() => { 
-                  if (currentView !== 'main') {
-                    setCurrentView('main');
-                  } else {
-                    setEditorAudioBuffer(audioBuffer); 
-                    setIsEditorActive(!isEditorActive); 
-                  }
-                }}
-              >
-                <h1 className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
-                  Bella Voice AI
-                </h1>
-                {currentView === 'main' && (
-                  <>
-                    <div className="px-1 text-slate-500 group-hover:text-indigo-400">
-                      <svg className={`w-4 h-4`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="16 3 21 3 21 8"></polyline>
-                        <line x1="4" y1="20" x2="21" y2="3"></line>
-                        <polyline points="21 16 21 21 16 21"></polyline>
-                        <line x1="15" x2="21" y2="21"></line>
-                        <line x1="4" y1="4" x2="9" y2="9"></line>
-                      </svg>
-                    </div>
-                    <span className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
-                      Bella Wave Editor
-                    </span>
-                  </>
-                )}
-              </div>
-              <p className="text-[10px] md:text-[11px] text-slate-500 font-medium mt-0.5 md:mt-1 tracking-wider italic">
-                {currentView === 'main' ? (!isEditorActive ? "Turn Words into Real Emotion." : "Shape Sound. Perfect Every Detail.") : "Professional Compliance & Studio Information"}
-              </p>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-10 w-full md:w-auto">
+          <div className="flex flex-col gap-0.5">
+            <div 
+              className="flex items-center gap-2 cursor-pointer select-none group"
+              onClick={() => { 
+                if (currentView !== 'main') {
+                  setCurrentView('main');
+                } else {
+                  setEditorAudioBuffer(audioBuffer); 
+                  setIsEditorActive(!isEditorActive); 
+                }
+              }}
+            >
+              <h1 className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
+                Bella Voice AI
+              </h1>
+              {currentView === 'main' && (
+                <>
+                  <div className="px-1 text-slate-500 group-hover:text-indigo-400">
+                    <svg className={`w-4 h-4`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 3 21 3 21 8"></polyline>
+                      <line x1="4" y1="20" x2="21" y2="3"></line>
+                      <polyline points="21 16 21 21 16 21"></polyline>
+                      <line x1="15" x2="21" y2="21"></line>
+                      <line x1="4" y1="4" x2="9" y2="9"></line>
+                    </svg>
+                  </div>
+                  <span className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
+                    Bella Wave Editor
+                  </span>
+                </>
+              )}
             </div>
+            <p className="text-[10px] md:text-[11px] text-slate-500 font-medium mt-0.5 md:mt-1 tracking-wider italic">
+              {currentView === 'main' ? (!isEditorActive ? "Turn Words into Real Emotion." : "Shape Sound. Perfect Every Detail.") : "Professional Compliance & Studio Information"}
+            </p>
           </div>
+
+          <nav className="hidden lg:flex items-center gap-8 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <button onClick={() => setCurrentView('main')} className={`hover:text-white transition-colors ${currentView === 'main' ? 'text-indigo-400' : ''}`}>Home</button>
+            <button onClick={() => setCurrentView('blog')} className={`hover:text-white transition-colors ${currentView === 'blog' || currentView === 'article' || currentView === 'blog-post' ? 'text-indigo-400' : ''}`}>Blog</button>
+            <button onClick={() => setCurrentView('about')} className={`hover:text-white transition-colors ${currentView === 'about' ? 'text-indigo-400' : ''}`}>About</button>
+            <button onClick={() => setCurrentView('contact')} className={`hover:text-white transition-colors ${currentView === 'contact' ? 'text-indigo-400' : ''}`}>Contact</button>
+          </nav>
         </div>
 
         <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto overflow-x-auto no-scrollbar py-1">
@@ -1342,7 +1362,7 @@ const App: React.FC = () => {
             Cloning Guide
           </button>
           <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap px-4 md:px-6 py-2 md:py-3 bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all flex items-center gap-2 md:gap-4 group shadow-lg backdrop-blur-md">
-            <span className="text-[10px] md:text-xs font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">SAMM</span>
+            <span className="text-[11px] md:text-sm font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">Studio Menu</span>
             <div className="space-y-1 w-5">
               <div className="h-0.5 w-full bg-indigo-400 group-hover:bg-amber-400 transition-all duration-300 group-hover:translate-x-1"/>
               <div className="h-0.5 w-3/4 bg-indigo-400 group-hover:bg-amber-400 transition-all duration-300"/>
@@ -1870,6 +1890,33 @@ const App: React.FC = () => {
                   ))}
                 </div>
               </section>
+
+              {/* Resources & Guides Section */}
+              <section className="space-y-12 pt-12 border-t border-slate-900">
+                <div className="text-center space-y-4">
+                  <h2 className="text-3xl md:text-5xl serif-title font-bold text-white">Resources & Guides</h2>
+                  <p className="text-slate-500 text-sm md:text-base max-w-2xl mx-auto">Deep dive into the world of AI voice technology with our expert-curated guides.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {MAIN_ARTICLES.map((article) => (
+                    <div key={article.id} className="p-6 glass rounded-3xl border border-slate-800/50 hover:border-indigo-500/30 transition-all group flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-white serif-title mb-3 group-hover:text-indigo-400 transition-colors">{article.title}</h3>
+                        <p className="text-slate-500 text-xs line-clamp-2 mb-6">Expert insights and comprehensive analysis of {article.title.toLowerCase()}.</p>
+                      </div>
+                      <button 
+                        onClick={() => { setSelectedArticle(article.id); setCurrentView('article'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                        className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-2"
+                      >
+                        Learn More <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center">
+                  <button onClick={() => setCurrentView('blog')} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest transition-all">View All Blog Posts</button>
+                </div>
+              </section>
             </div>
           </div>
         ) : currentView === 'blog' ? (
@@ -1904,23 +1951,65 @@ const App: React.FC = () => {
                   <h3 className="text-amber-400 font-bold uppercase tracking-[0.3em] text-[10px] border-b border-slate-800 pb-4">Latest Insights</h3>
                   <div className="grid grid-cols-1 gap-10">
                     {BLOG_POSTS.map((post, idx) => (
-                      <article key={idx} className="space-y-4 border-b border-slate-900 pb-10 last:border-0">
+                      <article key={idx} className="space-y-4 border-b border-slate-900 pb-10 last:border-0 group cursor-pointer" onClick={() => { setSelectedBlogPost(post.id); setCurrentView('blog-post'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                         <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          <span>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                          <span>{post.date}</span>
                           <div className="w-1 h-1 bg-slate-800 rounded-full" />
                           <span className="text-amber-500/70">{post.keywords.split(',')[0]}</span>
                         </div>
-                        <h3 className="text-2xl font-bold text-white serif-title">{post.title}</h3>
+                        <h3 className="text-2xl font-bold text-white serif-title group-hover:text-amber-400 transition-colors">{post.title}</h3>
                         <p className="text-slate-400 text-sm leading-relaxed">{post.description}</p>
                         <div className="flex flex-wrap gap-2">
                           {post.keywords.split(',').map((kw, kidx) => (
                             <span key={kidx} className="px-2 py-1 bg-slate-950 text-[9px] text-slate-600 rounded-md border border-slate-900 uppercase font-bold tracking-tighter">{kw.trim()}</span>
                           ))}
                         </div>
+                        <button className="text-amber-500 text-[10px] font-bold uppercase tracking-widest hover:text-amber-400 transition-colors">Read Article →</button>
                       </article>
                     ))}
                   </div>
                 </div>
+             </div>
+          </section>
+        ) : currentView === 'blog-post' ? (
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <button onClick={() => setCurrentView('blog')} className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                  Back to Blog
+                </button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+             </div>
+             
+             <div className="space-y-4">
+                <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  <span>{BLOG_POSTS.find(p => p.id === selectedBlogPost)?.date}</span>
+                  <div className="w-1 h-1 bg-slate-800 rounded-full" />
+                  <span>By {BLOG_POSTS.find(p => p.id === selectedBlogPost)?.author}</span>
+                </div>
+                <h1 className="text-4xl md:text-5xl serif-title font-bold text-white leading-tight">{BLOG_POSTS.find(p => p.id === selectedBlogPost)?.title}</h1>
+             </div>
+
+             <div className="prose prose-invert max-w-none prose-headings:serif-title prose-h2:text-2xl prose-h2:text-amber-400 prose-h3:text-xl prose-h3:text-white prose-p:text-slate-400 prose-p:leading-relaxed prose-li:text-slate-400">
+                {selectedBlogPost && (
+                  <div dangerouslySetInnerHTML={{ __html: BLOG_POSTS.find(p => p.id === selectedBlogPost)?.content || '' }} />
+                )}
+             </div>
+
+             {/* Author Bio */}
+             <div className="p-8 bg-slate-900/30 rounded-3xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-amber-500 shrink-0 flex items-center justify-center text-white font-bold text-xl">
+                  {BLOG_POSTS.find(p => p.id === selectedBlogPost)?.author?.charAt(0) || 'B'}
+                </div>
+                <div className="space-y-2 text-center md:text-left">
+                  <h4 className="text-white font-bold">About the Author: {BLOG_POSTS.find(p => p.id === selectedBlogPost)?.author}</h4>
+                  <p className="text-slate-500 text-xs leading-relaxed">A specialist in AI voice synthesis and digital content strategy. Dedicated to helping creators leverage the latest technology to bring their stories to life with emotional depth and professional quality.</p>
+                </div>
+             </div>
+
+             <div className="pt-12 border-t border-slate-900 text-center">
+                <p className="text-slate-500 text-xs mb-6">Found this helpful? Share it with your fellow creators.</p>
+                <button onClick={() => setCurrentView('main')} className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">Try BellaVox AI Now</button>
              </div>
           </section>
         ) : currentView === 'article' ? (
@@ -1937,6 +2026,15 @@ const App: React.FC = () => {
                 {selectedArticle && (
                   <div dangerouslySetInnerHTML={{ __html: MAIN_ARTICLES.find(a => a.id === selectedArticle)?.content || '' }} />
                 )}
+             </div>
+
+             {/* Author Bio for Articles */}
+             <div className="p-8 bg-slate-900/30 rounded-3xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-amber-500 shrink-0 flex items-center justify-center text-white font-bold text-xl">B</div>
+                <div className="space-y-2 text-center md:text-left">
+                  <h4 className="text-white font-bold">BellaVox Editorial Team</h4>
+                  <p className="text-slate-500 text-xs leading-relaxed">Our team of AI researchers and audio engineers are committed to providing the most accurate and up-to-date information on speech synthesis technology. We aim to empower the next generation of digital creators.</p>
+                </div>
              </div>
 
              <div className="pt-12 border-t border-slate-900 text-center">
@@ -2007,21 +2105,13 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                    <h3 className="text-indigo-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
                       <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
-                      Mode 1: Bella Voice AI
+                      Core Features
                    </h3>
-                   <p className="text-slate-400 text-sm leading-relaxed">The primary synthesis engine for turning text into high-fidelity human emotion.</p>
                    <div className="space-y-4">
-                      {[
-                        { t: "Vocal Profiles", d: "Select from premium studio voices. Each has unique tone and resonance." },
-                        { t: "Vibe Selection", d: "Apply performance templates (Documentary, Epic, etc.) to change the delivery feel." },
-                        { t: "Voice Cloning", d: "Create a digital twin of any voice by recording or uploading a 30s sample." },
-                        { t: "Clarity Boost", d: "Refine a cloned voice by providing a phonetic sample for better articulation." },
-                        { t: "Smart AI Draft", d: "Enter a title and let the AI generate a script and matching vibe for you." },
-                        { t: "Studio Tuning", d: "Use 'Consistency Lock' to prevent tonal drift across multiple generations." }
-                      ].map((item, idx) => (
+                      {TOOL_PAGE_CONTENT.features.map((item, idx) => (
                         <div key={idx} className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/50">
-                           <span className="text-white font-bold text-[11px] uppercase block mb-1">{item.t}</span>
-                           <p className="text-slate-500 text-xs">{item.d}</p>
+                           <span className="text-white font-bold text-[11px] uppercase block mb-1">{item.title}</span>
+                           <p className="text-slate-500 text-xs leading-relaxed">{item.description}</p>
                         </div>
                       ))}
                    </div>
@@ -2030,24 +2120,31 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                    <h3 className="text-amber-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
                       <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                      Mode 2: Bella Wave Editor
+                      Step-by-Step Guide
                    </h3>
-                   <p className="text-slate-400 text-sm leading-relaxed">A pro-grade mastering suite for cleaning and finalizing your voice outputs.</p>
                    <div className="space-y-4">
-                      {[
-                        { t: "Smart AI Enhance", d: "One-click neural cleanup that normalizes, reduces noise, and hits rhythmic consistency." },
-                        { t: "Silence Reduction", d: "Decisively removes dead air while preserving natural conversational rhythm." },
-                        { t: "Noise Profiler", d: "Deep spectral profiling to isolate and remove background hum or hiss." },
-                        { t: "Waveform Editing", d: "Precise Cut/Copy/Paste with visual waveform selection for manual timing fixes." },
-                        { t: "Acoustic Effects", d: "Apply studio reverb, slapback echo, or faders for a polished finish." },
-                        { t: "Seamless Sync", d: "Master your audio and sync it back to the main workflow for final export." }
-                      ].map((item, idx) => (
-                        <div key={idx} className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/50">
-                           <span className="text-white font-bold text-[11px] uppercase block mb-1">{item.t}</span>
-                           <p className="text-slate-500 text-xs">{item.d}</p>
+                      {TOOL_PAGE_CONTENT.howToUse.map((item, idx) => (
+                        <div key={idx} className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/50 flex gap-4">
+                           <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-[10px] font-bold shrink-0">{item.step}</div>
+                           <div>
+                             <span className="text-white font-bold text-[11px] uppercase block mb-1">{item.title}</span>
+                             <p className="text-slate-500 text-xs leading-relaxed">{item.description}</p>
+                           </div>
                         </div>
                       ))}
                    </div>
+                </div>
+             </div>
+
+             <div className="space-y-6 pt-8 border-t border-slate-800">
+                <h3 className="text-white font-bold text-xl serif-title">Frequently Asked Questions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {TOOL_PAGE_CONTENT.faqs.map((faq, idx) => (
+                     <div key={idx} className="space-y-2">
+                        <h4 className="text-indigo-400 font-bold text-xs uppercase tracking-wider">{faq.question}</h4>
+                        <p className="text-slate-400 text-xs leading-relaxed">{faq.answer}</p>
+                     </div>
+                   ))}
                 </div>
              </div>
           </section>
@@ -2577,6 +2674,32 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Cookie Consent Banner */}
+      <AnimatePresence>
+        {showCookieConsent && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-6 right-6 md:left-auto md:right-6 md:w-[400px] z-[9999] glass p-6 rounded-[32px] border border-indigo-500/20 shadow-2xl space-y-4"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="text-white font-bold text-sm">Cookie Policy</h4>
+                <p className="text-slate-400 text-[11px] leading-relaxed">We use cookies to enhance your experience and analyze our traffic. By continuing to use BellaVox AI, you agree to our use of cookies.</p>
+              </div>
+              <button onClick={() => setShowCookieConsent(false)} className="text-slate-500 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleAcceptCookies} className="flex-grow py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Accept All</button>
+              <button onClick={() => { setCurrentView('privacy'); setShowCookieConsent(false); }} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Learn More</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

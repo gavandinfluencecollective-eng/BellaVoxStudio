@@ -1,6 +1,6 @@
 {
   "name": "Bella Vox Studio",
-  "description": "Premium Voices. Real Emotions. An interactive text-to-speech application with human-like voices and customizable vibes.",
+  "description": "Bella Vox Studio - Professional AI Text to Speech & Voice Cloning. Convert text to natural human-like speech with emotional depth. Master your audio with the Bella Wave Editor.",
   "requestFramePermissions": [
     "microphone"
   ]
