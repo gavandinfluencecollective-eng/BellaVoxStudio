@@ -15,14 +15,18 @@ import {
   Waves,
   Lock,
   Trash2,
-  LogOut
+  LogOut,
+  Gift,
+  Coins,
+  TrendingUp,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GEMINI_VOICES, VIBES } from './constants';
 import { generateSpeech } from './services/ttsService';
 import { analyzeVoice } from './services/voiceCloningService';
 import { analyzeTitleAndGenerate } from './services/aiService';
-import { VoiceOption } from './types';
+import { VoiceOption, UserStats } from './types';
 import { MAIN_ARTICLES, BLOG_POSTS } from './src/constants/seoContent';
 import { TRUST_PAGES } from './src/constants/trustPages';
 import { TOOL_PAGE_CONTENT } from './src/constants/toolPageContent';
@@ -30,7 +34,14 @@ import { TOOL_PAGE_CONTENT } from './src/constants/toolPageContent';
 // Firebase Imports
 import { auth, db, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
+
+const REWARD_TIERS = [2, 4, 8, 10, 12, 16, 20, 25, 50, 0]; // Day 1-9 rewards, Day 10 is Mystery Box
+const INITIAL_CREDITS = 120;
+const TTS_COST = 20;
+const AD_REWARD = 8;
+const MAX_ADS_PER_DAY = 5;
+const ADSTERRA_LINK = "https://www.profitablecpmratenetwork.com/uvrpkttgjr?key=55d27c969e7035a08b2b1ee0934aed03";
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'main' | 'privacy' | 'about' | 'contact' | 'terms' | 'how-to-use' | 'use-cases' | 'blog' | 'article' | 'blog-post' | 'admin'>('main');
@@ -80,46 +91,187 @@ const App: React.FC = () => {
   const [adminTab, setAdminTab] = useState<'messages' | 'admins'>('messages');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isAdminActionLoading, setIsAdminActionLoading] = useState(false);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [mysteryBoxReward, setMysteryBoxReward] = useState<number | null>(null);
+  const [isMysteryBoxOpening, setIsMysteryBoxOpening] = useState(false);
+  const [adCooldown, setAdCooldown] = useState(0);
+
+  const handleDailyLogin = async (today: string) => {
+    if (!user || !userStats) return;
+
+    const lastLoginDateString = userStats.lastLoginDate;
+    const lastLoginDate = new Date(lastLoginDateString);
+    const todayDate = new Date(today);
+    
+    // Normalize dates to midnight for comparison
+    const lastLoginMidnight = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+    const todayMidnight = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+    
+    const diffTime = todayMidnight.getTime() - lastLoginMidnight.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    let newStreak = userStats.streakDay || 0;
+    
+    if (diffDays === 1) {
+      // Consecutive day
+      newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
+    } else if (diffDays > 1) {
+      // Missed a day
+      newStreak = 1;
+    } else {
+      // Same day, no reward
+      return;
+    }
+
+    const reward = REWARD_TIERS[newStreak - 1];
+    
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        credits: increment(reward),
+        streakDay: newStreak,
+        lastLoginDate: new Date().toISOString(),
+        adsWatchedToday: 0 // Reset ads count for the new day
+      });
+      
+      if (reward > 0) {
+        alert(`🎁 Daily Reward: Day ${newStreak}! You've earned ${reward} credits. Total streak: ${newStreak} days.`);
+      } else if (newStreak === 10) {
+        setIsRewardModalOpen(true); // Open mystery box
+      }
+    } catch (error) {
+      console.error("Error claiming daily reward:", error);
+    }
+  };
+
+  const handleWatchAd = async () => {
+    if (!user || !userStats) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    
+    if (userStats.adsWatchedToday >= MAX_ADS_PER_DAY) {
+      alert("🎁 Daily limit reached! You can watch more ads tomorrow for more credits.");
+      return;
+    }
+
+    if (adCooldown > 0) return;
+
+    window.open(ADSTERRA_LINK, "_blank");
+    
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        credits: increment(AD_REWARD),
+        adsWatchedToday: increment(1),
+        lastAdDate: new Date().toISOString()
+      });
+      
+      setAdCooldown(45); // 45 seconds cooldown
+      alert(`🎉 Success! +${AD_REWARD} credits added to your studio balance.`);
+    } catch (error) {
+      console.error("Error rewarding ad watch:", error);
+    }
+  };
+
+  const handleOpenMysteryBox = async () => {
+    if (!user || !userStats || userStats.streakDay !== 10 || isMysteryBoxOpening) return;
+    
+    setIsMysteryBoxOpening(true);
+    let reward = 0;
+    if (Math.random() < 0.98) {
+      reward = Math.floor(Math.random() * 50) + 1;
+    } else {
+      reward = Math.floor(Math.random() * 950) + 51;
+    }
+
+    await new Promise(r => setTimeout(r, 2000)); // Suspense delay
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        credits: increment(reward),
+        streakDay: 1 // Reset streak
+      });
+
+      setMysteryBoxReward(reward);
+      setIsMysteryBoxOpening(false);
+    } catch (error) {
+      console.error("Error opening mystery box:", error);
+      setIsMysteryBoxOpening(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adCooldown > 0) {
+      const timer = setInterval(() => setAdCooldown(prev => prev - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [adCooldown]);
 
   const ADMIN_EMAIL = 'gavandinfluencecollective@gmail.com';
 
-  // Auth Listener with Role Check
+  // Auth Listener with Role Check & Credit Sync
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser: any) => {
       setUser(authenticatedUser);
       if (authenticatedUser) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', authenticatedUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            if (userData.role === 'admin') {
-              setIsAdmin(true);
-            } else {
-              setIsAdmin(false);
-              if (currentView === 'admin') setCurrentView('main');
-            }
-          } else if (authenticatedUser.email === ADMIN_EMAIL) {
-            // Bootstrap default admin if not in collection
-            await setDoc(doc(db, 'users', authenticatedUser.uid), {
+          const userRef = doc(db, 'users', authenticatedUser.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (!userDoc.exists()) {
+            // New user initialization
+            const initialStats = {
+              credits: INITIAL_CREDITS,
+              lastLoginDate: new Date().toISOString(),
+              streakDay: 1,
+              adsWatchedToday: 0,
+              lastAdDate: new Date().toISOString(),
               email: authenticatedUser.email,
-              role: 'admin'
-            });
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-            if (currentView === 'admin') setCurrentView('main');
+              role: authenticatedUser.email === ADMIN_EMAIL ? 'admin' : 'user'
+            };
+            await setDoc(userRef, initialStats);
+            setUserStats(initialStats as any);
           }
+
+          // Real-time listener for user data
+          const unsubStats = onSnapshot(userRef, (snapshot) => {
+            if (snapshot.exists()) {
+              const data = snapshot.data() as UserStats;
+              setUserStats(data);
+              setIsAdmin(data.role === 'admin');
+              
+              if (data.role !== 'admin' && currentView === 'admin') {
+                setCurrentView('main');
+              }
+            }
+          });
+
+          return () => unsubStats();
         } catch (error) {
-          console.error("Error checking user role:", error);
-          setIsAdmin(false);
+          console.error("Error in auth listener:", error);
         }
       } else {
         setIsAdmin(false);
+        setUserStats(null);
         if (currentView === 'admin') setCurrentView('main');
       }
     });
     return () => unsubscribe();
   }, [currentView]);
+
+  // Daily Reward Check
+  useEffect(() => {
+    if (!userStats || !user) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastLoginStr = userStats.lastLoginDate?.split('T')[0];
+    
+    if (lastLoginStr && lastLoginStr !== todayStr) {
+      handleDailyLogin(todayStr);
+    }
+  }, [userStats, user]);
 
   // Real-time Listeners for Admin Data
   useEffect(() => {
@@ -981,7 +1133,12 @@ const App: React.FC = () => {
       setIsLoginModalOpen(true);
       return;
     }
+    if (!userStats || userStats.credits < TTS_COST) {
+      setIsRewardModalOpen(true);
+      return;
+    }
     if (isGenerating) return;
+    
     stopPlayback();
     setIsGenerating(true);
     let finalPersonality = personality;
@@ -992,6 +1149,16 @@ const App: React.FC = () => {
     }
     const buffer = await generateSpeech(script, finalPersonality, selectedVoice.engine, autoVibeFX, isListeningComfort, isVoiceConsistencyLock);
     if (buffer) {
+      // Subtract credits on successful start/generation
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+          credits: increment(-TTS_COST)
+        });
+      } catch (error) {
+        console.error("Error updating credits:", error);
+      }
+      
       setAudioBuffer(buffer);
       if (autoPlay) handlePlay(buffer);
     }
@@ -1309,11 +1476,11 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center py-2 md:py-4 gap-4 relative z-[60]">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-10 w-full md:w-auto">
-          <div className="flex flex-col gap-0.5">
+      <header className="flex flex-col sm:flex-row justify-between items-center py-2 md:py-4 gap-3 md:gap-4 relative z-[60] border-b border-white/5 sm:border-none mb-1 md:mb-0">
+        <div className="flex items-center gap-3 md:gap-10 flex-shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex flex-col gap-0">
             <div 
-              className="flex items-center gap-2 cursor-pointer select-none group"
+              className="flex items-center gap-1.5 md:gap-2 cursor-pointer select-none group"
               onClick={() => { 
                 if (currentView !== 'main') {
                   setCurrentView('main');
@@ -1323,13 +1490,13 @@ const App: React.FC = () => {
                 }
               }}
             >
-              <h1 className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
+              <h1 className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
                 Bella Voice AI
               </h1>
               {currentView === 'main' && (
                 <>
-                  <div className="px-1 text-slate-500 group-hover:text-indigo-400">
-                    <svg className={`w-4 h-4`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="px-0.5 md:px-1 text-slate-500 group-hover:text-indigo-400">
+                    <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="16 3 21 3 21 8"></polyline>
                       <line x1="4" y1="20" x2="21" y2="3"></line>
                       <polyline points="21 16 21 21 16 21"></polyline>
@@ -1337,14 +1504,14 @@ const App: React.FC = () => {
                       <line x1="4" y1="4" x2="9" y2="9"></line>
                     </svg>
                   </div>
-                  <span className={`text-lg md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
-                    Bella Wave Editor
+                  <span className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
+                    Editor
                   </span>
                 </>
               )}
             </div>
-            <p className="text-[10px] md:text-[11px] text-slate-500 font-medium mt-0.5 md:mt-1 tracking-wider italic">
-              {currentView === 'main' ? (!isEditorActive ? "Turn Words into Real Emotion." : "Shape Sound. Perfect Every Detail.") : "Professional Compliance & Studio Information"}
+            <p className="hidden xs:block text-[9px] md:text-[11px] text-slate-500 font-medium mt-0.5 md:mt-1 tracking-wider italic">
+              {currentView === 'main' ? (!isEditorActive ? "Turn Words into Real Emotion." : "Shape Sound. Perfect Every Detail.") : "Studio Information"}
             </p>
           </div>
 
@@ -1356,11 +1523,38 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto overflow-x-auto no-scrollbar py-1">
-          <button onClick={() => { setTutorialStep(0); setIsTutorialOpen(true); }} className="whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[9px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-widest transition-all flex items-center gap-2 md:gap-3 group">
+        <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto sm:flex-1 min-w-0">
+          <button onClick={() => { setTutorialStep(0); setIsTutorialOpen(true); }} className="hidden sm:flex whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[9px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-widest transition-all items-center gap-2 md:gap-3 group">
             <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-indigo-400 rounded-full animate-pulse group-hover:scale-125 transition-transform" />
             Cloning Guide
           </button>
+          
+          {user && (
+            <div className="flex items-center gap-2 md:gap-3">
+              <button 
+                onClick={() => setIsRewardModalOpen(true)}
+                className="whitespace-nowrap px-3 md:px-5 py-2 md:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-[8px] md:text-[10px] font-black text-amber-500 uppercase tracking-widest transition-all flex items-center gap-1.5 md:gap-3 group"
+              >
+                <Gift size={12} className="group-hover:rotate-12 transition-transform" />
+                <span className="hidden xs:inline">Reward</span>
+              </button>
+
+              <button 
+                onClick={() => setIsRewardModalOpen(true)}
+                className="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2 md:py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-2xl transition-all group"
+              >
+                <Coins size={12} className="text-amber-400 group-hover:rotate-12 transition-transform" />
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-white font-bold text-[10px] md:text-sm">{userStats?.credits || 0}</span>
+                  <span className="text-[7px] md:text-[8px] font-bold text-indigo-400 uppercase tracking-widest opacity-80">Credits</span>
+                </div>
+                <div className="hidden sm:block w-px h-4 bg-white/10 mx-0.5 md:mx-1" />
+                <div className="hidden sm:flex w-5 h-5 md:w-6 md:h-6 bg-indigo-500 rounded-lg items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:bg-indigo-400 transition-colors">
+                  <Gift size={10} className="text-white" />
+                </div>
+              </button>
+            </div>
+          )}
           <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap px-4 md:px-6 py-2 md:py-3 bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all flex items-center gap-2 md:gap-4 group shadow-lg backdrop-blur-md">
             <span className="text-[11px] md:text-sm font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">Studio Menu</span>
             <div className="space-y-1 w-5">
@@ -1380,6 +1574,7 @@ const App: React.FC = () => {
             {[
               { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
               { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
+              { id: 'rewards', label: 'Rewards', icon: Gift, action: () => setIsRewardModalOpen(true) },
               { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
               { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
               { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
@@ -1421,6 +1616,7 @@ const App: React.FC = () => {
               {[
                 { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
                 { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
+                { id: 'rewards', label: 'Rewards', icon: Gift, action: () => setIsRewardModalOpen(true) },
                 { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
                 { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
                 { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
@@ -2674,6 +2870,197 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* REWARD & CREDIT MODAL */}
+      <AnimatePresence>
+        {isRewardModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsRewardModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" 
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg glass rounded-[40px] border border-indigo-500/30 overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 md:p-10 space-y-8">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-2xl font-bold text-white serif-title">Studio Credits</h2>
+                    <p className="text-slate-400 text-[11px] uppercase tracking-widest font-bold">Refill your balance to continue creating</p>
+                  </div>
+                  <button onClick={() => setIsRewardModalOpen(false)} className="p-3 text-slate-500 hover:text-white bg-slate-900 rounded-2xl transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* CURRENT BALANCE CARD */}
+                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center">
+                      <Coins className="text-indigo-400" size={24} />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Active Balance</div>
+                      <div className="text-3xl font-bold text-white">{userStats?.credits || 0} <span className="text-sm text-slate-400 font-medium">Credits</span></div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Next Goal</div>
+                    <div className="text-indigo-400 font-extrabold">+50 Mystery Box</div>
+                  </div>
+                </div>
+
+                {/* REWARD OPTIONS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* WATCH AD */}
+                  <button 
+                    onClick={handleWatchAd}
+                    disabled={adCooldown > 0 || (userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY}
+                    className="p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800 transition-all text-left flex flex-col gap-4 group relative overflow-hidden"
+                  >
+                    <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <div className="text-white font-bold">Watch & Earn</div>
+                      <div className="text-slate-400 text-[11px]">Get +8 Credits per ad</div>
+                    </div>
+                    <div className="mt-auto flex justify-between items-end">
+                      <div className="text-indigo-400 font-bold text-[10px] uppercase tracking-widest">
+                        {adCooldown > 0 ? `Wait ${adCooldown}s` : `${MAX_ADS_PER_DAY - (userStats?.adsWatchedToday || 0)} left today`}
+                      </div>
+                      <ChevronRight size={14} className="text-slate-600 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    {(userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY && <div className="absolute inset-0 bg-slate-950/60 flex items-center justify-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Limit Reached</div>}
+                  </button>
+
+                  {/* STREAK */}
+                  <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/50 flex flex-col gap-4 relative overflow-hidden">
+                    <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
+                      <TrendingUp size={20} />
+                    </div>
+                    <div>
+                      <div className="text-white font-bold">Daily Streak</div>
+                      <div className="text-slate-400 text-[11px]">Day {userStats?.streakDay || 1} / 10</div>
+                    </div>
+                    
+                    {/* STREAK BAR */}
+                    <div className="mt-auto space-y-2">
+                       <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                         <span>Build Streak</span>
+                         <span>{userStats?.streakDay === 10 ? 'Ready!' : `${10 - (userStats?.streakDay || 0)} days left`}</span>
+                       </div>
+                       <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                         <div 
+                           className="h-full bg-indigo-500 transition-all duration-500" 
+                           style={{ width: `${(userStats?.streakDay || 0) * 10}%` }}
+                         />
+                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* REWARD CALENDAR */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                      <TrendingUp size={12} className="text-indigo-400" />
+                      Daily Tracker
+                    </h3>
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Progress: {((userStats?.streakDay || 0) / 10 * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 md:gap-3">
+                    {REWARD_TIERS.map((reward, index) => {
+                      const day = index + 1;
+                      const isCompleted = (userStats?.streakDay || 0) > day;
+                      const isCurrent = (userStats?.streakDay === 10 && day === 10) || ((userStats?.streakDay || 1) === day);
+                      
+                      return (
+                        <div 
+                          key={day} 
+                          className={`relative py-3 rounded-2xl flex flex-col items-center justify-center gap-1.5 border transition-all duration-300 ${
+                            isCurrent 
+                              ? 'bg-indigo-600/90 border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.4)] scale-105 z-10' 
+                              : isCompleted 
+                                ? 'bg-slate-900/60 border-slate-800 text-slate-600' 
+                                : 'bg-slate-900/40 border-white/5 text-slate-400'
+                          }`}
+                        >
+                          <span className={`text-[8px] font-bold uppercase tracking-tighter ${isCurrent ? 'text-white' : 'text-slate-500'}`}>D{day}</span>
+                          {day === 10 ? (
+                            <div className="relative">
+                              <Gift size={14} className={isCurrent ? 'text-white animate-pulse' : isCompleted ? 'text-indigo-400/30' : 'text-amber-500'} />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-0.5">
+                              <span className={`text-[11px] font-black ${isCurrent ? 'text-white' : 'text-slate-300'}`}>{reward}</span>
+                              <Coins size={8} className={isCurrent ? 'text-indigo-300' : 'text-slate-600'} />
+                            </div>
+                          )}
+                          
+                          {isCompleted && (
+                            <div className="absolute top-1 right-1 w-3 h-3 bg-indigo-500/20 rounded-full flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* MYSTERY BOX SECTION (Only visible on Day 10) */}
+                {userStats?.streakDay === 10 && (
+                  <button 
+                    onClick={handleOpenMysteryBox}
+                    disabled={isMysteryBoxOpening || mysteryBoxReward !== null}
+                    className="w-full p-8 rounded-3xl border-2 border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-transparent relative overflow-hidden group"
+                  >
+                    <div className="flex items-center gap-6 relative z-10">
+                      <div className={`w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 ${isMysteryBoxOpening ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`}>
+                        <Gift className="text-slate-900" size={32} />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-amber-500 text-[10px] font-bold uppercase tracking-[0.2em]">Milestone Reward</div>
+                        <h3 className="text-white text-xl font-black italic">ULTIMATE MYSTERY BOX</h3>
+                        <p className="text-slate-300 text-xs">Tap to claim your achievement reward!</p>
+                      </div>
+                    </div>
+                    
+                    {isMysteryBoxOpening && (
+                       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2">
+                         <Sparkles className="text-amber-500 animate-spin" />
+                         <span className="text-white text-[10px] font-bold uppercase tracking-widest">Opening Vault...</span>
+                       </div>
+                    )}
+
+                    {mysteryBoxReward !== null && (
+                      <div className="absolute inset-0 bg-indigo-600 flex flex-col items-center justify-center">
+                        <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">You Won</div>
+                        <div className="text-4xl font-black text-white">{mysteryBoxReward} Credits!</div>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setMysteryBoxReward(null); setIsRewardModalOpen(false); }}
+                          className="mt-4 px-6 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white transition-all"
+                        >
+                          Collect & Close
+                        </button>
+                      </div>
+                    )}
+                  </button>
+                )}
+
+                <p className="text-center text-slate-500 text-[10px] uppercase font-bold tracking-widest">TTS Generation Cost: 20 Credits / Export</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Cookie Consent Banner */}
       <AnimatePresence>

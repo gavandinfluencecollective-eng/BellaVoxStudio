@@ -24,3 +24,13 @@ export interface AppState {
   isPlaying: boolean;
   isGenerating: boolean;
 }
+
+export interface UserStats {
+  credits: number;
+  lastLoginDate: string;
+  streakDay: number;
+  adsWatchedToday: number;
+  lastAdDate: string;
+  role?: string;
+  email?: string;
+}
