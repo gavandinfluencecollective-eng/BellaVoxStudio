@@ -3014,9 +3014,10 @@ const App: React.FC = () => {
                       return (
                         <div 
                           key={day} 
+                          onClick={() => { if (isCurrent && userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0]) handleDailyLogin(); }}
                           className={`relative py-3 rounded-2xl flex flex-col items-center justify-center gap-1.5 border transition-all duration-300 ${
                             isCurrent 
-                              ? 'bg-indigo-600/90 border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.4)] scale-105 z-10' 
+                              ? 'bg-indigo-600/90 border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.4)] scale-105 z-10 cursor-pointer hover:bg-indigo-500' 
                               : isCompleted 
                                 ? 'bg-slate-900/60 border-slate-800 text-slate-600' 
                                 : 'bg-slate-900/40 border-white/5 text-slate-400'
@@ -3031,6 +3032,12 @@ const App: React.FC = () => {
                             <div className="flex items-center gap-0.5">
                               <span className={`text-[11px] font-black ${isCurrent ? 'text-white' : 'text-slate-300'}`}>{reward}</span>
                               <Coins size={8} className={isCurrent ? 'text-indigo-300' : 'text-slate-600'} />
+                            </div>
+                          )}
+                          
+                          {isCurrent && userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0] && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-indigo-600/60 backdrop-blur-[1px] rounded-2xl opacity-0 hover:opacity-100 transition-opacity">
+                              <span className="text-[8px] font-black uppercase text-white tracking-widest">Claim</span>
                             </div>
                           )}
                           
