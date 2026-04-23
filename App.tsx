@@ -11,6 +11,8 @@ import {
   Settings, 
   X,
   ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
   Activity,
   Waves,
   Lock,
@@ -97,57 +99,41 @@ const App: React.FC = () => {
   const [isMysteryBoxOpening, setIsMysteryBoxOpening] = useState(false);
   const [adCooldown, setAdCooldown] = useState(0);
 
-  const handleDailyLogin = async () => {
-    if (!user || !userStats) return;
+  const claimDailyReward = async () => {
+    if (!user) return;
 
-    const lastLoginDateString = userStats.lastLoginDate;
-    const lastLoginDate = lastLoginDateString ? new Date(lastLoginDateString) : null;
-    const now = new Date();
-    
-    let newStreak = userStats.streakDay || 0;
-    
-    if (lastLoginDate) {
-      const diffTime = now.getTime() - lastLoginDate.getTime();
-      const hoursDiff = diffTime / (1000 * 60 * 60);
+    const today = new Date().toISOString().split('T')[0];
+    const userRef = doc(db, "users", user.uid);
+    const snap = await getDoc(userRef);
 
-      if (hoursDiff < 24) {
-        const remainingHours = 24 - hoursDiff;
-        const h = Math.floor(remainingHours);
-        const m = Math.floor((remainingHours % 1) * 60);
-        alert(`You can claim your next reward in ${h}h ${m}m.`);
-        return;
-      }
-
-      // If it's been 24-48 hours, increment streak
-      if (hoursDiff >= 24 && hoursDiff < 48) {
-        newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
-      } else {
-        // Missed the window, reset streak to 1
-        newStreak = 1;
-      }
+    let data;
+    if (!snap.exists()) {
+      data = {
+        credits: 200,
+        streakDay: 1,
+        lastLoginDate: "",
+        email: user.email,
+        role: user.email === ADMIN_EMAIL ? 'admin' : 'user'
+      };
+      await setDoc(userRef, data);
     } else {
-      newStreak = 1;
+      data = snap.data();
     }
 
-    const reward = REWARD_TIERS[newStreak - 1];
-    
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        credits: increment(reward),
-        streakDay: newStreak,
-        lastLoginDate: new Date().toISOString(),
-        adsWatchedToday: 0
-      });
-      
-      if (reward > 0) {
-        alert(`🎁 Daily Reward: Day ${newStreak}! You've earned ${reward} credits.`);
-      } else if (newStreak === 10) {
-        setIsRewardModalOpen(true); // Open mystery box
-      }
-    } catch (error) {
-      console.error("Error claiming daily reward:", error);
+    if (data.lastLoginDate === today) {
+      alert("Already claimed today");
+      return;
     }
+
+    let reward = 10 * (data.streakDay || 1);
+
+    await updateDoc(userRef, {
+      credits: (data.credits || 0) + reward,
+      streakDay: (data.streakDay || 0) + 1,
+      lastLoginDate: today
+    });
+
+    alert("Reward claimed!");
   };
 
   const showAd = (userId: string) => {
@@ -255,7 +241,7 @@ const App: React.FC = () => {
             // New user initialization
             const initialStats = {
               credits: INITIAL_CREDITS,
-              lastLoginDate: new Date().toISOString(),
+              lastLoginDate: "",
               streakDay: 1,
               adsWatchedToday: 0,
               lastAdDate: "",
@@ -1350,7 +1336,19 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 pb-24 lg:pb-10 flex flex-col gap-6 md:gap-10 text-slate-200 relative overflow-x-hidden">
+    <div className="min-h-screen w-full max-w-md mx-auto px-4 pt-8 md:py-10 pb-24 lg:pb-10 flex flex-col space-y-4 text-slate-200 relative overflow-x-hidden md:max-w-7xl md:px-6 md:space-y-10">
+      
+      {/* ISSUE 4: LOGIN BUTTON NOT VISIBLE - MOBILE FIX */}
+      {!user && (
+        <div className="fixed bottom-4 left-0 right-0 px-4 z-50 md:hidden">
+          <button 
+            onClick={() => setIsLoginModalOpen(true)}
+            className="w-full py-3 rounded-xl bg-indigo-500 text-white"
+          >
+            Login / Signup
+          </button>
+        </div>
+      )}
       
       {/* Settings Drawer */}
       {isDrawerOpen && <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9998]" onClick={() => setIsDrawerOpen(false)} />}
@@ -1546,39 +1544,50 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="flex flex-col sm:flex-row justify-between items-center py-2 md:py-4 gap-3 md:gap-4 relative z-[60] border-b border-white/5 sm:border-none mb-1 md:mb-0">
+      <header className="flex flex-col sm:flex-row justify-between items-center py-3 md:py-4 px-4 md:px-0 gap-3 md:gap-4 relative z-[60] border-b border-white/5 sm:border-none mb-1 md:mb-0">
         <div className="flex items-center gap-3 md:gap-10 flex-shrink-0 w-full sm:w-auto justify-between sm:justify-start">
-          <div className="flex flex-col gap-0">
-            <div 
-              className="flex items-center gap-1.5 md:gap-2 cursor-pointer select-none group"
-              onClick={() => { 
-                if (currentView !== 'main') {
-                  setCurrentView('main');
-                } else {
-                  setEditorAudioBuffer(audioBuffer); 
-                  setIsEditorActive(!isEditorActive); 
-                }
-              }}
-            >
-              <h1 className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
-                Bella Voice AI
-              </h1>
-              {currentView === 'main' && (
-                <>
-                  <div className="px-0.5 md:px-1 text-slate-500 group-hover:text-indigo-400">
-                    <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="16 3 21 3 21 8"></polyline>
-                      <line x1="4" y1="20" x2="21" y2="3"></line>
-                      <polyline points="21 16 21 21 16 21"></polyline>
-                      <line x1="15" x2="21" y2="21"></line>
-                      <line x1="4" y1="4" x2="9" y2="9"></line>
-                    </svg>
-                  </div>
-                  <span className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
-                    Editor
-                  </span>
-                </>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-4">
+              {currentView !== 'main' && (
+                <button 
+                  onClick={() => { setCurrentView('main'); setIsEditorActive(false); }}
+                  className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 border border-white/5"
+                >
+                  <ArrowLeft size={12} />
+                  Back to Studio
+                </button>
               )}
+              <div 
+                className="flex items-center gap-1.5 md:gap-2 cursor-pointer select-none group"
+                onClick={() => { 
+                  if (currentView !== 'main') {
+                    setCurrentView('main');
+                  } else {
+                    setEditorAudioBuffer(audioBuffer); 
+                    setIsEditorActive(!isEditorActive); 
+                  }
+                }}
+              >
+                <h1 className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${!isEditorActive ? 'text-white' : 'text-slate-500'}`}>
+                  Bella Voice AI
+                </h1>
+                {currentView === 'main' && (
+                  <>
+                    <div className="px-0.5 md:px-1 text-slate-500 group-hover:text-indigo-400">
+                      <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="16 3 21 3 21 8"></polyline>
+                        <line x1="4" y1="20" x2="21" y2="3"></line>
+                        <polyline points="21 16 21 21 16 21"></polyline>
+                        <line x1="15" x2="21" y2="21"></line>
+                        <line x1="4" y1="4" x2="9" y2="9"></line>
+                      </svg>
+                    </div>
+                    <span className={`text-base md:text-xl serif-title font-bold tracking-tight transition-colors ${isEditorActive ? 'text-amber-500' : 'text-slate-500'}`}>
+                      Editor
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
             <p className="hidden xs:block text-[9px] md:text-[11px] text-slate-500 font-medium mt-0.5 md:mt-1 tracking-wider italic">
               {currentView === 'main' ? (!isEditorActive ? "Turn Words into Real Emotion." : "Shape Sound. Perfect Every Detail.") : "Studio Information"}
@@ -1593,46 +1602,48 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto sm:flex-1 min-w-0">
-          <button onClick={() => { setTutorialStep(0); setIsTutorialOpen(true); }} className="hidden sm:flex whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[9px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-widest transition-all items-center gap-2 md:gap-3 group">
-            <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-indigo-400 rounded-full animate-pulse group-hover:scale-125 transition-transform" />
-            Cloning Guide
-          </button>
-          
-          {user && (
-            <div className="flex items-center gap-2 md:gap-3">
-              <button 
-                onClick={() => setIsRewardModalOpen(true)}
-                className="whitespace-nowrap px-3 md:px-5 py-2 md:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-[8px] md:text-[10px] font-black text-amber-500 uppercase tracking-widest transition-all flex items-center gap-1.5 md:gap-3 group"
-              >
-                <Gift size={12} className="group-hover:rotate-12 transition-transform" />
-                <span className="hidden xs:inline">Reward</span>
-              </button>
+          <div className="flex items-center justify-between sm:justify-end gap-1.5 md:gap-4 w-full sm:w-auto sm:flex-1 min-w-0">
+            <button onClick={() => { setTutorialStep(0); setIsTutorialOpen(true); }} className="hidden sm:flex whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[9px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-widest transition-all items-center gap-2 md:gap-3 group">
+              <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-indigo-400 rounded-full animate-pulse group-hover:scale-125 transition-transform" />
+              Cloning Guide
+            </button>
+            
+            {user && (
+              <div className="flex items-center gap-1.5 md:gap-3">
+                <button 
+                  onClick={() => setIsRewardModalOpen(true)}
+                  className="whitespace-nowrap px-2 md:px-5 py-2 md:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-[7px] md:text-[10px] font-black text-amber-500 uppercase tracking-widest transition-all flex items-center gap-1 md:gap-3 group shrink-0"
+                >
+                  <Gift size={11} className="group-hover:rotate-12 transition-transform" />
+                  <span className="hidden xs:inline">Reward</span>
+                </button>
 
+                <button 
+                  onClick={() => setIsRewardModalOpen(true)}
+                  className="flex items-center gap-1.5 md:gap-3 px-2 md:px-5 py-2 md:py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-2xl transition-all group shrink-0"
+                >
+                  <Coins size={11} className="text-amber-400 group-hover:rotate-12 transition-transform" />
+                  <div className="flex flex-col items-start leading-none gap-0.5">
+                    <span className="text-white font-bold text-[9px] md:text-sm">{userStats?.credits || 0}</span>
+                    <span className="text-[6px] md:text-[8px] font-bold text-indigo-400 uppercase tracking-widest opacity-80">Credits</span>
+                  </div>
+                  <div className="hidden sm:block w-px h-4 bg-white/10 mx-0.5 md:mx-1" />
+                  <div className="hidden sm:flex w-5 h-5 md:w-6 md:h-6 bg-indigo-500 rounded-lg items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:bg-indigo-400 transition-colors">
+                    <Gift size={10} className="text-white" />
+                  </div>
+                </button>
+              </div>
+            )}
+          {!user && (
+            <div className="fixed bottom-4 left-0 right-0 px-4 sm:relative sm:bottom-0 sm:left-0 sm:right-0 sm:px-0 z-[100] sm:z-auto">
               <button 
-                onClick={() => setIsRewardModalOpen(true)}
-                className="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2 md:py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-2xl transition-all group"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="w-full sm:w-auto whitespace-nowrap px-4 md:px-5 py-3 md:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30 rounded-xl sm:rounded-2xl text-[11px] md:text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl shadow-indigo-500/40 sm:shadow-lg sm:shadow-indigo-500/20"
               >
-                <Coins size={12} className="text-amber-400 group-hover:rotate-12 transition-transform" />
-                <div className="flex flex-col items-start leading-none">
-                  <span className="text-white font-bold text-[10px] md:text-sm">{userStats?.credits || 0}</span>
-                  <span className="text-[7px] md:text-[8px] font-bold text-indigo-400 uppercase tracking-widest opacity-80">Credits</span>
-                </div>
-                <div className="hidden sm:block w-px h-4 bg-white/10 mx-0.5 md:mx-1" />
-                <div className="hidden sm:flex w-5 h-5 md:w-6 md:h-6 bg-indigo-500 rounded-lg items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:bg-indigo-400 transition-colors">
-                  <Gift size={10} className="text-white" />
-                </div>
+                <Lock size={14} />
+                Sign In to Studio
               </button>
             </div>
-          )}
-          {!user && (
-            <button 
-              onClick={() => setIsLoginModalOpen(true)}
-              className="whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
-            >
-              <Lock size={12} />
-              Login
-            </button>
           )}
           <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap px-4 md:px-6 py-2 md:py-3 bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all flex items-center gap-2 md:gap-4 group shadow-lg backdrop-blur-md">
             <span className="text-[11px] md:text-sm font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">Studio Menu</span>
@@ -1645,8 +1656,9 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-grow relative z-[30]">
-        {/* PROFESSIONAL STUDIO NAVIGATION BAR */}
+      <main className="flex-grow relative z-[30] pt-8 md:pt-0">
+        <div className="w-full max-w-md md:max-w-7xl mx-auto px-4 md:px-6 flex flex-col space-y-4 md:space-y-0">
+          {/* PROFESSIONAL STUDIO NAVIGATION BAR */}
         <nav className="relative z-[55] w-full mb-6 md:mb-8">
           {/* Desktop Navigation - Sleek Top Bar */}
           <div className="hidden md:flex sticky top-0 bg-slate-950/80 backdrop-blur-2xl border-b border-white/5 py-4 justify-center items-center gap-12 px-6 w-full">
@@ -1748,7 +1760,7 @@ const App: React.FC = () => {
         {currentView === 'main' ? (
           <div className="pb-40">
             {!isEditorActive ? (
-              <div className="space-y-10 animate-in fade-in duration-500">
+              <div className="flex flex-col space-y-4 animate-in fade-in duration-500">
                 <section className="space-y-6">
                   <div className="flex items-center gap-4"><span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">Vocal Profiles</span><div className="h-px flex-grow bg-slate-800" /></div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-11 gap-2 md:gap-3">
@@ -2202,10 +2214,10 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : currentView === 'blog' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 md:space-y-12 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">Studio Blog & Insights</h2>
-                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center">Back to Studio</button>
              </div>
              
              <div className="space-y-16">
@@ -2254,13 +2266,13 @@ const App: React.FC = () => {
              </div>
           </section>
         ) : currentView === 'blog-post' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 md:space-y-12 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <button onClick={() => setCurrentView('blog')} className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
                   Back to Blog
                 </button>
-                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center">Back to Studio</button>
              </div>
              
              <div className="space-y-4">
@@ -2295,13 +2307,13 @@ const App: React.FC = () => {
              </div>
           </section>
         ) : currentView === 'article' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 md:space-y-12 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <button onClick={() => setCurrentView('blog')} className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
                   Back to Blog
                 </button>
-                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center">Back to Studio</button>
              </div>
              
              <div className="prose prose-invert max-w-none prose-headings:serif-title prose-h1:text-4xl md:prose-h1:text-5xl prose-h2:text-2xl prose-h2:text-indigo-400 prose-p:text-slate-400 prose-p:leading-relaxed prose-li:text-slate-400">
@@ -2377,7 +2389,7 @@ const App: React.FC = () => {
              </div>
           </section>
         ) : currentView === 'how-to-use' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 md:space-y-12 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">How to Use Bella Studio</h2>
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
@@ -2431,7 +2443,7 @@ const App: React.FC = () => {
              </div>
           </section>
        ) : currentView === 'privacy' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.privacy.title}</h2>
                 <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
@@ -2441,20 +2453,20 @@ const App: React.FC = () => {
              </div>
           </section>
         ) : currentView === 'terms' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.terms.title}</h2>
-                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center">Back to Studio</button>
              </div>
              <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm md:prose-p:text-base prose-p:leading-relaxed prose-li:text-slate-400 prose-li:text-sm">
                 <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.terms.content }} />
              </div>
           </section>
         ) : currentView === 'about' ? (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-8">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-2xl md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 overflow-hidden px-4 md:px-12">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <h2 className="text-3xl md:text-4xl serif-title font-bold text-white">{TRUST_PAGES.about.title}</h2>
-                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-colors">Back to Studio</button>
+                <button onClick={() => setCurrentView('main')} className="w-full md:w-auto px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center">Back to Studio</button>
              </div>
              <div className="prose prose-invert max-w-none prose-h1:hidden prose-h2:text-white prose-h2:font-bold prose-h2:uppercase prose-h2:tracking-wider prose-h2:text-xs prose-p:text-slate-400 prose-p:text-sm md:prose-p:text-base prose-p:leading-relaxed prose-li:text-slate-400 prose-li:text-sm">
                 <div dangerouslySetInnerHTML={{ __html: TRUST_PAGES.about.content }} />
@@ -2596,7 +2608,7 @@ const App: React.FC = () => {
             )}
           </section>
         ) : (
-          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[40px] p-8 md:p-12 max-w-4xl mx-auto space-y-12">
+          <section className="relative z-[30] animate-in slide-in-from-bottom-5 duration-500 glass rounded-[32px] md:rounded-[40px] p-6 md:p-12 w-full max-w-md md:max-w-4xl mx-auto space-y-8 md:space-y-12 overflow-hidden px-4 md:px-12">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <div className="space-y-8">
                    <div className="space-y-4">
@@ -2673,6 +2685,7 @@ const App: React.FC = () => {
              </div>
           </section>
         )}
+        </div>
       </main>
 
       <footer className="relative z-[40] mt-auto py-12 border-t border-slate-900 flex flex-col items-center gap-8 text-center px-4">
@@ -2972,33 +2985,33 @@ const App: React.FC = () => {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg glass rounded-[40px] border border-indigo-500/30 overflow-hidden shadow-2xl"
+              className="relative w-full max-w-[92%] sm:max-w-md glass rounded-[28px] md:rounded-[32px] border border-indigo-500/30 overflow-hidden shadow-2xl"
             >
-              <div className="p-8 md:p-10 space-y-8">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-white serif-title">Studio Credits</h2>
-                    <p className="text-slate-400 text-[11px] uppercase tracking-widest font-bold">Refill your balance to continue creating</p>
+              <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+                <div className="flex items-center justify-between gap-4 px-1">
+                  <div className="space-y-0.5">
+                    <h2 className="text-base md:text-xl font-bold text-white serif-title">Studio Credits</h2>
+                    <p className="text-slate-400 text-[7px] md:text-[10px] uppercase tracking-widest font-bold">Refill your balance to continue creating</p>
                   </div>
-                  <button onClick={() => setIsRewardModalOpen(false)} className="p-3 text-slate-500 hover:text-white bg-slate-900 rounded-2xl transition-colors">
-                    <X size={20} />
+                  <button onClick={() => setIsRewardModalOpen(false)} className="p-1.5 md:p-2 text-slate-500 hover:text-white bg-slate-900/50 rounded-lg md:rounded-xl transition-colors shrink-0">
+                    <X size={14} className="md:w-4 md:h-4" />
                   </button>
                 </div>
 
                 {/* CURRENT BALANCE CARD */}
-                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center">
-                      <Coins className="text-indigo-400" size={24} />
+                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl p-3 md:p-4 border border-white/5 flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center shrink-0">
+                      <Coins className="text-indigo-400 w-4 h-4 md:w-5 md:h-5" />
                     </div>
                     <div>
-                      <div className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Active Balance</div>
-                      <div className="text-3xl font-bold text-white">{userStats?.credits || 0} <span className="text-sm text-slate-400 font-medium">Credits</span></div>
+                      <div className="text-[8px] md:text-[9px] text-indigo-300 font-bold uppercase tracking-widest">Active Balance</div>
+                      <div className="text-xl md:text-2xl font-bold text-white">{userStats?.credits || 0} <span className="text-[10px] md:text-xs text-slate-400 font-medium whitespace-nowrap">Credits</span></div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Next Goal</div>
-                    <div className="text-indigo-400 font-extrabold">+50 Mystery Box</div>
+                  <div className="text-left xs:text-right w-full xs:w-auto pt-2 xs:pt-0 border-t xs:border-t-0 border-white/5">
+                    <div className="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase tracking-widest">Next Goal</div>
+                    <div className="text-indigo-400 font-extrabold text-xs md:text-sm">+50 Mystery Box</div>
                   </div>
                 </div>
 
@@ -3008,40 +3021,43 @@ const App: React.FC = () => {
                   <button 
                     onClick={handleWatchAd}
                     disabled={adCooldown > 0 || (userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY}
-                    className="p-6 rounded-3xl border border-white/5 bg-slate-900/50 hover:bg-slate-800 transition-all text-left flex flex-col gap-4 group relative overflow-hidden"
+                    className="p-4 md:p-6 rounded-[20px] md:rounded-[24px] border border-white/5 bg-slate-900/50 hover:bg-slate-800 transition-all text-left flex flex-col gap-3 md:gap-4 group relative overflow-hidden active:scale-95 touch-manipulation w-full"
                   >
-                    <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
-                      <Sparkles size={20} />
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-amber-500/20 rounded-lg md:rounded-xl flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                      <Sparkles size={16} className="md:w-5 md:h-5" />
                     </div>
                     <div>
-                      <div className="text-white font-bold">Watch & Earn</div>
-                      <div className="text-slate-400 text-[11px]">Get +10 Credits per ad</div>
+                      <div className="text-white text-sm md:text-base font-bold">Watch & Earn</div>
+                      <div className="text-slate-400 text-[9px] md:text-[11px] uppercase tracking-wider">Get +10 Credits per ad</div>
                     </div>
                     <div className="mt-auto flex justify-between items-end">
-                      <div className="text-indigo-400 font-bold text-[10px] uppercase tracking-widest">
-                        {adCooldown > 0 ? `Wait ${adCooldown}s` : `${MAX_ADS_PER_DAY - (userStats?.adsWatchedToday || 0)} left today`}
+                      <div className="text-indigo-400 font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em]">
+                        {adCooldown > 0 ? `Wait ${adCooldown}s` : `${MAX_ADS_PER_DAY - (userStats?.adsWatchedToday || 0)}/5 ADS LEFT`}
                       </div>
-                      <ChevronRight size={14} className="text-slate-600 group-hover:translate-x-1 transition-transform" />
+                      <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 group-hover:border-indigo-500/30 transition-colors">
+                        <ChevronRight size={12} className="text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-all md:w-3.5 md:h-3.5" />
+                      </div>
                     </div>
-                    {(userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY && <div className="absolute inset-0 bg-slate-950/60 flex items-center justify-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Limit Reached</div>}
+                    {(userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY && <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Daily Limit Reached</div>}
                   </button>
 
                   {/* STREAK */}
-                  <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/50 flex flex-col gap-4 relative overflow-hidden">
-                    <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
-                      <TrendingUp size={20} />
+                  <div className="p-4 md:p-6 rounded-[20px] md:rounded-[24px] border border-white/5 bg-slate-900/50 flex flex-col gap-3 md:gap-4 relative overflow-hidden w-full">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-500/20 rounded-lg md:rounded-xl flex items-center justify-center text-indigo-400">
+                      <TrendingUp size={16} className="md:w-5 md:h-5" />
                     </div>
-                    <div className="flex justify-between items-start">
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                       <div>
-                        <div className="text-white font-bold">Daily Streak</div>
-                        <div className="text-slate-400 text-[11px]">Day {userStats?.streakDay || 1} / 10</div>
+                        <div className="text-white text-sm md:text-base font-bold">Daily Streak</div>
+                        <div className="text-slate-400 text-[9px] md:text-[11px]">Day {userStats?.streakDay || 1} / 10</div>
                       </div>
-                      {userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0] && (
+                      {userStats?.lastLoginDate !== new Date().toISOString().split('T')[0] && (
                         <button 
-                          onClick={handleDailyLogin}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                          onClick={claimDailyReward}
+                          className="w-full sm:w-auto px-4 md:px-6 py-2.5 md:py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] md:text-[11px] font-black uppercase rounded-lg md:rounded-xl transition-all shadow-xl shadow-indigo-500/30 active:scale-95 flex items-center justify-center gap-2"
                         >
-                          Claim
+                          <Gift size={12} className="md:w-3.5 md:h-3.5" />
+                          Claim Reward
                         </button>
                       )}
                     </div>
@@ -3063,15 +3079,15 @@ const App: React.FC = () => {
                 </div>
 
                 {/* REWARD CALENDAR */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[10px] font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
-                      <TrendingUp size={12} className="text-indigo-400" />
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-[9px] md:text-[10px] font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                      <TrendingUp size={11} className="text-indigo-400 md:w-3 md:h-3" />
                       Daily Tracker
                     </h3>
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Progress: {((userStats?.streakDay || 0) / 10 * 100).toFixed(0)}%</span>
+                    <span className="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase tracking-widest">Progress: {((userStats?.streakDay || 0) / 10 * 100).toFixed(0)}%</span>
                   </div>
-                  <div className="grid grid-cols-5 gap-2 md:gap-3">
+                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1 -mx-1">
                     {REWARD_TIERS.map((reward, index) => {
                       const day = index + 1;
                       const isCompleted = (userStats?.streakDay || 0) > day;
@@ -3080,8 +3096,8 @@ const App: React.FC = () => {
                       return (
                         <div 
                           key={day} 
-                          onClick={() => { if (isCurrent && userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0]) handleDailyLogin(); }}
-                          className={`relative py-3 rounded-2xl flex flex-col items-center justify-center gap-1.5 border transition-all duration-300 ${
+                          onClick={() => { if (isCurrent && userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0]) claimDailyReward(); }}
+                          className={`min-w-[60px] text-xs p-2 rounded-xl text-center relative flex flex-col items-center justify-center gap-1 border transition-all duration-300 ${
                             isCurrent 
                               ? 'bg-indigo-600/90 border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.4)] scale-105 z-10 cursor-pointer hover:bg-indigo-500' 
                               : isCompleted 
@@ -3123,16 +3139,16 @@ const App: React.FC = () => {
                   <button 
                     onClick={handleOpenMysteryBox}
                     disabled={isMysteryBoxOpening || mysteryBoxReward !== null}
-                    className="w-full p-8 rounded-3xl border-2 border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-transparent relative overflow-hidden group"
+                    className="w-full p-5 md:p-8 rounded-[28px] md:rounded-3xl border-2 border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-transparent relative overflow-hidden group"
                   >
-                    <div className="flex items-center gap-6 relative z-10">
-                      <div className={`w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 ${isMysteryBoxOpening ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`}>
-                        <Gift className="text-slate-900" size={32} />
+                    <div className="flex items-center gap-4 md:gap-6 relative z-10">
+                      <div className={`w-12 h-12 md:w-16 md:h-16 bg-amber-500 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 ${isMysteryBoxOpening ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`}>
+                        <Gift className="text-slate-900 w-6 h-6 md:w-8 md:h-8" />
                       </div>
                       <div className="text-left">
-                        <div className="text-amber-500 text-[10px] font-bold uppercase tracking-[0.2em]">Milestone Reward</div>
-                        <h3 className="text-white text-xl font-black italic">ULTIMATE MYSTERY BOX</h3>
-                        <p className="text-slate-300 text-xs">Tap to claim your achievement reward!</p>
+                        <div className="text-amber-500 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em]">Milestone Reward</div>
+                        <h3 className="text-white text-lg md:text-xl font-black italic">ULTIMATE MYSTERY BOX</h3>
+                        <p className="text-slate-300 text-[10px] md:text-xs">Tap to claim your achievement reward!</p>
                       </div>
                     </div>
                     
