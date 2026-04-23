@@ -36,10 +36,10 @@ import { auth, db, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc, setDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 
-const REWARD_TIERS = [2, 4, 8, 10, 12, 16, 20, 25, 50, 0]; // Day 1-9 rewards, Day 10 is Mystery Box
-const INITIAL_CREDITS = 120;
+const REWARD_TIERS = [10, 20, 30, 40, 50, 60, 80, 100, 150, 0]; // Day 1-9 rewards, Day 10 is Mystery Box
+const INITIAL_CREDITS = 200;
 const TTS_COST = 20;
-const AD_REWARD = 8;
+const AD_REWARD = 10;
 const MAX_ADS_PER_DAY = 5;
 const ADSTERRA_LINK = "https://www.profitablecpmratenetwork.com/uvrpkttgjr?key=55d27c969e7035a08b2b1ee0934aed03";
 
@@ -97,31 +97,33 @@ const App: React.FC = () => {
   const [isMysteryBoxOpening, setIsMysteryBoxOpening] = useState(false);
   const [adCooldown, setAdCooldown] = useState(0);
 
-  const handleDailyLogin = async (today: string) => {
+  const handleDailyLogin = async () => {
     if (!user || !userStats) return;
 
     const lastLoginDateString = userStats.lastLoginDate;
-    const lastLoginDate = new Date(lastLoginDateString);
-    const todayDate = new Date(today);
+    const lastLoginDate = lastLoginDateString ? new Date(lastLoginDateString) : null;
+    const todayDate = new Date();
     
     // Normalize dates to midnight for comparison
-    const lastLoginMidnight = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+    const lastLoginMidnight = lastLoginDate ? new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate()) : null;
     const todayMidnight = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
     
-    const diffTime = todayMidnight.getTime() - lastLoginMidnight.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
     let newStreak = userStats.streakDay || 0;
     
-    if (diffDays === 1) {
-      // Consecutive day
-      newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
-    } else if (diffDays > 1) {
-      // Missed a day
-      newStreak = 1;
+    if (lastLoginMidnight) {
+      const diffTime = todayMidnight.getTime() - lastLoginMidnight.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
+      } else if (diffDays > 1) {
+        newStreak = 1;
+      } else if (diffDays === 0) {
+        alert("You've already claimed your daily reward today!");
+        return;
+      }
     } else {
-      // Same day, no reward
-      return;
+      newStreak = 1;
     }
 
     const reward = REWARD_TIERS[newStreak - 1];
@@ -132,47 +134,70 @@ const App: React.FC = () => {
         credits: increment(reward),
         streakDay: newStreak,
         lastLoginDate: new Date().toISOString(),
-        adsWatchedToday: 0 // Reset ads count for the new day
+        adsWatchedToday: 0
       });
       
       if (reward > 0) {
-        alert(`🎁 Daily Reward: Day ${newStreak}! You've earned ${reward} credits. Total streak: ${newStreak} days.`);
-      } else if (newStreak === 10) {
-        setIsRewardModalOpen(true); // Open mystery box
+        alert(`🎁 Daily Reward: Day ${newStreak}! You've earned ${reward} credits.`);
       }
     } catch (error) {
       console.error("Error claiming daily reward:", error);
     }
   };
 
-  const handleWatchAd = async () => {
+  const showAd = (userId: string) => {
+    window.open(ADSTERRA_LINK, "_blank");
+    giveAdReward(userId);
+  };
+
+  const giveAdReward = async (userId: string) => {
+    if (!user || !userStats) return;
+
+    const lastAdDateStr = userStats.lastAdDate?.split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    let currentWatched = userStats.adsWatchedToday || 0;
+    if (lastAdDateStr !== todayStr) {
+      currentWatched = 0;
+    }
+
+    if (currentWatched >= MAX_ADS_PER_DAY) {
+      alert("You have reached your daily ad limit. Come back tomorrow!");
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        credits: increment(AD_REWARD),
+        adsWatchedToday: lastAdDateStr !== todayStr ? 1 : increment(1),
+        lastAdDate: new Date().toISOString()
+      });
+      setAdCooldown(45);
+      alert(`🎉 Ad Reward: +${AD_REWARD} credits added!`);
+    } catch (error) {
+      console.error("Error giving ad reward:", error);
+    }
+  };
+
+  const handleWatchAd = () => {
     if (!user || !userStats) {
       setIsLoginModalOpen(true);
       return;
     }
     
-    if (userStats.adsWatchedToday >= MAX_ADS_PER_DAY) {
-      alert("🎁 Daily limit reached! You can watch more ads tomorrow for more credits.");
+    if (adCooldown > 0) return;
+    
+    const lastAdDateStr = userStats.lastAdDate?.split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentWatched = (lastAdDateStr === todayStr) ? (userStats.adsWatchedToday || 0) : 0;
+
+    if (currentWatched >= MAX_ADS_PER_DAY) {
+      alert("Daily limit reached! Try again tomorrow.");
       return;
     }
 
-    if (adCooldown > 0) return;
-
-    window.open(ADSTERRA_LINK, "_blank");
-    
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        credits: increment(AD_REWARD),
-        adsWatchedToday: increment(1),
-        lastAdDate: new Date().toISOString()
-      });
-      
-      setAdCooldown(45); // 45 seconds cooldown
-      alert(`🎉 Success! +${AD_REWARD} credits added to your studio balance.`);
-    } catch (error) {
-      console.error("Error rewarding ad watch:", error);
-    }
+    showAd(user.uid);
   };
 
   const handleOpenMysteryBox = async () => {
@@ -228,7 +253,7 @@ const App: React.FC = () => {
               lastLoginDate: new Date().toISOString(),
               streakDay: 1,
               adsWatchedToday: 0,
-              lastAdDate: new Date().toISOString(),
+              lastAdDate: "",
               email: authenticatedUser.email,
               role: authenticatedUser.email === ADMIN_EMAIL ? 'admin' : 'user'
             };
@@ -262,15 +287,10 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, [currentView]);
 
-  // Daily Reward Check
+  // Daily Reward Check removed - handled by manual claim button
   useEffect(() => {
     if (!userStats || !user) return;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const lastLoginStr = userStats.lastLoginDate?.split('T')[0];
-    
-    if (lastLoginStr && lastLoginStr !== todayStr) {
-      handleDailyLogin(todayStr);
-    }
+    // We don't auto-claim anymore to satisfy the manual claim requirement
   }, [userStats, user]);
 
   // Real-time Listeners for Admin Data
@@ -2929,7 +2949,7 @@ const App: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-white font-bold">Watch & Earn</div>
-                      <div className="text-slate-400 text-[11px]">Get +8 Credits per ad</div>
+                      <div className="text-slate-400 text-[11px]">Get +10 Credits per ad</div>
                     </div>
                     <div className="mt-auto flex justify-between items-end">
                       <div className="text-indigo-400 font-bold text-[10px] uppercase tracking-widest">
@@ -2945,9 +2965,19 @@ const App: React.FC = () => {
                     <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
                       <TrendingUp size={20} />
                     </div>
-                    <div>
-                      <div className="text-white font-bold">Daily Streak</div>
-                      <div className="text-slate-400 text-[11px]">Day {userStats?.streakDay || 1} / 10</div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-white font-bold">Daily Streak</div>
+                        <div className="text-slate-400 text-[11px]">Day {userStats?.streakDay || 1} / 10</div>
+                      </div>
+                      {userStats?.lastLoginDate?.split('T')[0] !== new Date().toISOString().split('T')[0] && (
+                        <button 
+                          onClick={handleDailyLogin}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                        >
+                          Claim
+                        </button>
+                      )}
                     </div>
                     
                     {/* STREAK BAR */}
