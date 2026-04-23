@@ -102,25 +102,28 @@ const App: React.FC = () => {
 
     const lastLoginDateString = userStats.lastLoginDate;
     const lastLoginDate = lastLoginDateString ? new Date(lastLoginDateString) : null;
-    const todayDate = new Date();
-    
-    // Normalize dates to midnight for comparison
-    const lastLoginMidnight = lastLoginDate ? new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate()) : null;
-    const todayMidnight = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+    const now = new Date();
     
     let newStreak = userStats.streakDay || 0;
     
-    if (lastLoginMidnight) {
-      const diffTime = todayMidnight.getTime() - lastLoginMidnight.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (lastLoginDate) {
+      const diffTime = now.getTime() - lastLoginDate.getTime();
+      const hoursDiff = diffTime / (1000 * 60 * 60);
 
-      if (diffDays === 1) {
-        newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
-      } else if (diffDays > 1) {
-        newStreak = 1;
-      } else if (diffDays === 0) {
-        alert("You've already claimed your daily reward today!");
+      if (hoursDiff < 24) {
+        const remainingHours = 24 - hoursDiff;
+        const h = Math.floor(remainingHours);
+        const m = Math.floor((remainingHours % 1) * 60);
+        alert(`You can claim your next reward in ${h}h ${m}m.`);
         return;
+      }
+
+      // If it's been 24-48 hours, increment streak
+      if (hoursDiff >= 24 && hoursDiff < 48) {
+        newStreak = (newStreak >= 10) ? 1 : newStreak + 1;
+      } else {
+        // Missed the window, reset streak to 1
+        newStreak = 1;
       }
     } else {
       newStreak = 1;
@@ -139,6 +142,8 @@ const App: React.FC = () => {
       
       if (reward > 0) {
         alert(`🎁 Daily Reward: Day ${newStreak}! You've earned ${reward} credits.`);
+      } else if (newStreak === 10) {
+        setIsRewardModalOpen(true); // Open mystery box
       }
     } catch (error) {
       console.error("Error claiming daily reward:", error);
@@ -537,7 +542,7 @@ const App: React.FC = () => {
     { title: "Clarity Boost", text: "Use the micro-option to record a short articulation script to further refine pronunciation.", icon: "🎯" },
     { title: "Vocal Selection", text: "Click your custom clone to make it the active voice for your script.", icon: "✅" },
     { title: "Script Writing", text: "Enter your vision in the script input area or use 'Smart AI Draft'.", icon: "✍️" },
-    { title: "Neural Synthesis", text: "Press 'Listen Now' to generate high-fidelity speech using your cloned identity.", icon: "🔊" },
+    { title: "Neural Synthesis", text: "Press 'Generate Now' to generate high-fidelity speech using your cloned identity.", icon: "🔊" },
     { title: "Studio Export", text: "Use the 'Save' button to download your creation as a premium WAV file.", icon: "💾" }
   ];
 
@@ -1493,6 +1498,51 @@ const App: React.FC = () => {
                </button>
             </div>
           </div>
+
+          <div className="pt-6 border-t border-slate-800">
+            <label className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-4 block text-center">Studio Account</label>
+            <div className="flex flex-col gap-3">
+               {!user ? (
+                 <button 
+                   onClick={() => { setIsLoginModalOpen(true); setIsDrawerOpen(false); }}
+                   className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-3"
+                 >
+                   <Lock size={14} />
+                   Login / Sign Up
+                 </button>
+               ) : (
+                 <div className="space-y-3">
+                   <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-xs font-black">
+                       {user.email?.charAt(0).toUpperCase()}
+                     </div>
+                     <div className="flex flex-col min-w-0">
+                       <span className="text-[10px] text-slate-300 font-bold truncate">{user.email}</span>
+                       <span className="text-[8px] text-indigo-500 font-bold uppercase tracking-widest">{isAdmin ? 'Studio Admin' : 'Creator'}</span>
+                     </div>
+                   </div>
+                   
+                   {isAdmin && (
+                     <button 
+                       onClick={() => { setCurrentView('admin'); setIsDrawerOpen(false); }}
+                       className="w-full py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3"
+                     >
+                       <Activity size={12} />
+                       Admin Dashboard
+                     </button>
+                   )}
+
+                   <button 
+                     onClick={() => { handleLogout(); setIsDrawerOpen(false); }}
+                     className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3"
+                   >
+                     <LogOut size={12} />
+                     Log Out
+                   </button>
+                 </div>
+               )}
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -1574,6 +1624,15 @@ const App: React.FC = () => {
                 </div>
               </button>
             </div>
+          )}
+          {!user && (
+            <button 
+              onClick={() => setIsLoginModalOpen(true)}
+              className="whitespace-nowrap px-4 md:px-5 py-2 md:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/30 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+            >
+              <Lock size={12} />
+              Login
+            </button>
           )}
           <button onClick={() => setIsDrawerOpen(true)} className="whitespace-nowrap px-4 md:px-6 py-2 md:py-3 bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all flex items-center gap-2 md:gap-4 group shadow-lg backdrop-blur-md">
             <span className="text-[11px] md:text-sm font-extrabold text-slate-300 group-hover:text-white uppercase tracking-[0.2em]">Studio Menu</span>
@@ -2011,7 +2070,14 @@ const App: React.FC = () => {
                   </div>
                   
                   <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
-                    {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : (user ? 'Listen Now' : 'Login to Listen')}
+                    {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : (
+                      user ? (
+                        <div className="flex flex-col items-center justify-center leading-none mt-1">
+                          <span className="mb-0.5">Generate Now</span>
+                          <span className="text-[9px] lowercase opacity-60 font-medium tracking-normal">(20 credits)</span>
+                        </div>
+                      ) : 'Login to Generate'
+                    )}
                   </button>
                 </div>
               </div>
