@@ -32,7 +32,7 @@
     },
     "users": {
       "title": "Users",
-      "description": "Application users with roles.",
+      "description": "Application users with credits, streaks, and roles.",
       "type": "object",
       "properties": {
         "email": {
@@ -44,9 +44,31 @@
           "type": "string",
           "enum": ["admin", "user"],
           "description": "User's role."
+        },
+        "credits": {
+          "type": "integer",
+          "description": "Current credit balance."
+        },
+        "streakDay": {
+          "type": "integer",
+          "description": "Current daily login streak."
+        },
+        "lastLoginDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last timestamp the user claimed a daily reward."
+        },
+        "adsWatchedToday": {
+          "type": "integer",
+          "description": "Number of ads watched today."
+        },
+        "lastAdDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last timestamp the user watched an ad."
         }
       },
-      "required": ["email", "role"]
+      "required": ["email", "role", "credits", "streakDay", "lastLoginDate", "adsWatchedToday", "lastAdDate"]
     }
   },
   "firestore": {
