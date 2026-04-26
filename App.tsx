@@ -144,12 +144,27 @@ const App: React.FC = () => {
   const giveAdReward = async (userId: string) => {
     if (!user || !userStats) return;
 
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     const lastAdDateStr = userStats.lastAdDate?.split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const adLimitReachedAt = userStats.adLimitReachedAt ? new Date(userStats.adLimitReachedAt) : null;
     
     let currentWatched = userStats.adsWatchedToday || 0;
     if (lastAdDateStr !== todayStr) {
       currentWatched = 0;
+    }
+
+    // Check if 24h lockout applies
+    if (currentWatched >= MAX_ADS_PER_DAY && adLimitReachedAt) {
+      const diffMs = now.getTime() - adLimitReachedAt.getTime();
+      const diffHr = diffMs / (1000 * 60 * 60);
+      if (diffHr < 24) {
+        const waitTime = Math.ceil(24 - diffHr);
+        alert(`You have reached your daily ad limit. Ads will be available again in ${waitTime} hours.`);
+        return;
+      } else {
+        currentWatched = 0; // Reset after 24h
+      }
     }
 
     if (currentWatched >= MAX_ADS_PER_DAY) {
@@ -159,10 +174,14 @@ const App: React.FC = () => {
 
     try {
       const userRef = doc(db, 'users', userId);
+      const nextWatchedCount = currentWatched + 1;
+      const reachingLimit = nextWatchedCount >= MAX_ADS_PER_DAY;
+
       await updateDoc(userRef, {
         credits: increment(AD_REWARD),
-        adsWatchedToday: lastAdDateStr !== todayStr ? 1 : increment(1),
-        lastAdDate: new Date().toISOString()
+        adsWatchedToday: nextWatchedCount,
+        lastAdDate: now.toISOString(),
+        ...(reachingLimit ? { adLimitReachedAt: now.toISOString() } : {})
       });
       setAdCooldown(45);
       alert(`🎉 Ad Reward: +${AD_REWARD} credits added!`);
@@ -179,9 +198,23 @@ const App: React.FC = () => {
     
     if (adCooldown > 0) return;
     
+    const now = new Date();
     const lastAdDateStr = userStats.lastAdDate?.split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
-    const currentWatched = (lastAdDateStr === todayStr) ? (userStats.adsWatchedToday || 0) : 0;
+    const todayStr = now.toISOString().split('T')[0];
+    const adLimitReachedAt = userStats.adLimitReachedAt ? new Date(userStats.adLimitReachedAt) : null;
+    
+    let currentWatched = (lastAdDateStr === todayStr) ? (userStats.adsWatchedToday || 0) : 0;
+
+    if (currentWatched >= MAX_ADS_PER_DAY && adLimitReachedAt) {
+      const diffHr = (now.getTime() - adLimitReachedAt.getTime()) / (1000 * 60 * 60);
+      if (diffHr < 24) {
+        const waitTime = Math.ceil(24 - diffHr);
+        alert(`Daily limit reached! Reward ads reset in ${waitTime} hours.`);
+        return;
+      } else {
+        currentWatched = 0;
+      }
+    }
 
     if (currentWatched >= MAX_ADS_PER_DAY) {
       alert("Daily limit reached! Try again tomorrow.");
@@ -1334,6 +1367,20 @@ const App: React.FC = () => {
       </div>
     </div>
   );
+
+  const adUI = (() => {
+    if (!userStats) return { watched: 0, isLimit: false };
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const lastAdDateStr = userStats.lastAdDate?.split('T')[0];
+    const adLimitReachedAt = userStats.adLimitReachedAt ? new Date(userStats.adLimitReachedAt) : null;
+    let watched = (lastAdDateStr === todayStr) ? (userStats.adsWatchedToday || 0) : 0;
+    if (watched >= MAX_ADS_PER_DAY && adLimitReachedAt) {
+      const diffHr = (now.getTime() - adLimitReachedAt.getTime()) / (1000 * 60 * 60);
+      if (diffHr >= 24) watched = 0;
+    }
+    return { watched, isLimit: watched >= MAX_ADS_PER_DAY };
+  })();
 
   return (
     <div className="min-h-screen w-full max-w-md mx-auto px-4 pt-8 md:py-10 pb-24 lg:pb-10 flex flex-col space-y-4 text-slate-200 relative overflow-x-hidden md:max-w-7xl md:px-6 md:space-y-10">
@@ -3020,7 +3067,7 @@ const App: React.FC = () => {
                   {/* WATCH AD */}
                   <button 
                     onClick={handleWatchAd}
-                    disabled={adCooldown > 0 || (userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY}
+                    disabled={adCooldown > 0 || adUI.isLimit}
                     className="p-4 md:p-6 rounded-[20px] md:rounded-[24px] border border-white/5 bg-slate-900/50 hover:bg-slate-800 transition-all text-left flex flex-col gap-3 md:gap-4 group relative overflow-hidden active:scale-95 touch-manipulation w-full"
                   >
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-amber-500/20 rounded-lg md:rounded-xl flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
@@ -3032,13 +3079,13 @@ const App: React.FC = () => {
                     </div>
                     <div className="mt-auto flex justify-between items-end">
                       <div className="text-indigo-400 font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em]">
-                        {adCooldown > 0 ? `Wait ${adCooldown}s` : `${MAX_ADS_PER_DAY - (userStats?.adsWatchedToday || 0)}/5 ADS LEFT`}
+                        {adCooldown > 0 ? `Wait ${adCooldown}s` : `${MAX_ADS_PER_DAY - adUI.watched}/5 ADS LEFT`}
                       </div>
                       <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 group-hover:border-indigo-500/30 transition-colors">
                         <ChevronRight size={12} className="text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-all md:w-3.5 md:h-3.5" />
                       </div>
                     </div>
-                    {(userStats?.adsWatchedToday || 0) >= MAX_ADS_PER_DAY && <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Daily Limit Reached</div>}
+                    {adUI.isLimit && <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Daily Limit Reached</div>}
                   </button>
 
                   {/* STREAK */}

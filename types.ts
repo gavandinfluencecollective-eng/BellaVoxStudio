@@ -31,6 +31,7 @@ export interface UserStats {
   streakDay: number;
   adsWatchedToday: number;
   lastAdDate: string;
+  adLimitReachedAt?: string;
   role?: string;
   email?: string;
 }
