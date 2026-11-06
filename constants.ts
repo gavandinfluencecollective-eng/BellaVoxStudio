@@ -22,6 +22,12 @@ export const VIBES: VibeOption[] = [
     personality: "Affect/Personality: An authoritative, cinematic documentary narrator. Your voice is rich, resonant, and balanced with perfect clarity. You speak with a sense of wonder and profound knowledge. Use slow, deliberate pacing with thoughtful pauses to let the gravity of the information sink in. Your breathing should be calm and almost imperceptible, yet natural. Sound like you are narrating a high-budget nature or space documentary. Avoid any rushed delivery; every syllable should feel meaningful. The tone is informative yet deeply engaging, capturing the beauty and mystery of the subject matter. This must feel like a premium, human performance recorded in a world-class studio.",
     script: "In the heart of the ancient forest, a silent revolution is taking place. Beneath the moss-covered floor, a vast network of fungi connects the trees, sharing nutrients and information in a complex web of life. It is a world of hidden signals and ancient alliances, where the survival of the individual depends entirely on the strength of the whole. This is the secret language of the woods."
   },
+ {
+    id: 'dark-documentary',
+    name: 'Dark Documentary',
+    personality: "Affect/Personality: An authoritative, deep, and suspenseful cinematic documentary narrator. Your voice is low-pitched, calm, resonant, and balanced with crystal-clear studio articulation. You speak with a sense of deep mystery and investigative gravity. Use slow, deliberate pacing with thoughtful dramatic pauses to let the weight of every secret sink in. Your breathing should be calm and natural. If the script is in Hindi or English, maintain a serious, gripping, high-budget mystery documentary tone recorded in a world-class studio.",
+    script: "इतिहास के पन्नों में कुछ ऐसे राज़ दफ़न हैं... जिन्हें कभी बाहर नहीं आना चाहिए था। हज़ारों साल पहले, जब दुनिया अंधेरे में डूबी थी, तब एक ऐसे ग्रंथ की रचना हुई जिसकी हर पंक्ति में एक गहरा रहस्य छुपा था। यदा यदा हि धर्मस्य ग्लानिर्भवति भारत। अभ्युत्थानमधर्मस्य तदात्मानं सृजाम्यहम्॥ लेकिन सवाल ये है... कि उस रात मंदिर के तहखाने में आखिर हुआ क्या था?"
+  },
   {
     id: 'historical-epic',
     name: 'Historical Epic',

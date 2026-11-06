@@ -102,38 +102,45 @@ const App: React.FC = () => {
   const claimDailyReward = async () => {
     if (!user) return;
 
-    const today = new Date().toISOString().split('T')[0];
-    const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
 
-    let data;
-    if (!snap.exists()) {
-      data = {
-        credits: 200,
-        streakDay: 1,
-        lastLoginDate: "",
-        email: user.email,
-        role: user.email === ADMIN_EMAIL ? 'admin' : 'user'
-      };
-      await setDoc(userRef, data);
-    } else {
-      data = snap.data();
+      let data;
+      if (!snap.exists()) {
+        data = {
+          credits: 200,
+          streakDay: 1,
+          lastLoginDate: "",
+          adsWatchedToday: 0,
+          lastAdDate: "",
+          email: user.email || "",
+          role: user.email === ADMIN_EMAIL ? 'admin' : 'user'
+        };
+        await setDoc(userRef, data);
+      } else {
+        data = snap.data();
+      }
+
+      if (data.lastLoginDate === today) {
+        alert("Already claimed today");
+        return;
+      }
+
+      let reward = 10 * (data.streakDay || 1);
+
+      await updateDoc(userRef, {
+        credits: (data.credits || 0) + reward,
+        streakDay: (data.streakDay || 0) + 1,
+        lastLoginDate: today
+      });
+
+      alert("Reward claimed!");
+    } catch (err) {
+      console.error("Error claiming daily reward:", err);
+      alert("Unable to claim reward right now. Please check your connection.");
     }
-
-    if (data.lastLoginDate === today) {
-      alert("Already claimed today");
-      return;
-    }
-
-    let reward = 10 * (data.streakDay || 1);
-
-    await updateDoc(userRef, {
-      credits: (data.credits || 0) + reward,
-      streakDay: (data.streakDay || 0) + 1,
-      lastLoginDate: today
-    });
-
-    alert("Reward claimed!");
   };
 
   const showAd = (userId: string) => {
@@ -263,44 +270,48 @@ const App: React.FC = () => {
 
   // Auth Listener with Role Check & Credit Sync
   useEffect(() => {
+    let unsubStats: (() => void) | null = null;
     const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser: any) => {
       setUser(authenticatedUser);
+      if (unsubStats) {
+        unsubStats();
+        unsubStats = null;
+      }
       if (authenticatedUser) {
         try {
           const userRef = doc(db, 'users', authenticatedUser.uid);
           const userDoc = await getDoc(userRef);
           
           if (!userDoc.exists()) {
-            // New user initialization
             const initialStats = {
               credits: INITIAL_CREDITS,
               lastLoginDate: "",
               streakDay: 1,
               adsWatchedToday: 0,
               lastAdDate: "",
-              email: authenticatedUser.email,
+              email: authenticatedUser.email || "",
               role: authenticatedUser.email === ADMIN_EMAIL ? 'admin' : 'user'
             };
             await setDoc(userRef, initialStats);
             setUserStats(initialStats as any);
           }
 
-          // Real-time listener for user data
-          const unsubStats = onSnapshot(userRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.data() as UserStats;
-              setUserStats(data);
-              setIsAdmin(data.role === 'admin');
-              
-              if (data.role !== 'admin' && currentView === 'admin') {
-                setCurrentView('main');
+          unsubStats = onSnapshot(
+            userRef,
+            (snapshot) => {
+              if (snapshot.exists()) {
+                const data = snapshot.data() as UserStats;
+                setUserStats(data);
+                setIsAdmin(data.role === 'admin');
+                if (data.role !== 'admin' && currentView === 'admin') {
+                  setCurrentView('main');
+                }
               }
-            }
-          });
-
-          return () => unsubStats();
+            },
+            (err) => console.warn("User stats listener warning:", err)
+          );
         } catch (error) {
-          console.error("Error in auth listener:", error);
+          console.warn("Auth listener warning:", error);
         }
       } else {
         setIsAdmin(false);
@@ -308,7 +319,10 @@ const App: React.FC = () => {
         if (currentView === 'admin') setCurrentView('main');
       }
     });
-    return () => unsubscribe();
+    return () => {
+      if (unsubStats) unsubStats();
+      unsubscribe();
+    };
   }, [currentView]);
 
   // Daily Reward Check removed - handled by manual claim button
@@ -322,16 +336,28 @@ const App: React.FC = () => {
     if (!isAdmin || currentView !== 'admin') return;
 
     const qMessages = query(collection(db, 'contact_messages'), orderBy('createdAt', 'desc'));
-    const unsubscribeMessages = onSnapshot(qMessages, (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setContactMessages(messages);
-    });
+    const unsubscribeMessages = onSnapshot(
+      qMessages,
+      (snapshot) => {
+        const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setContactMessages(messages);
+      },
+      (error) => {
+        console.warn("Messages listener warning:", error);
+      }
+    );
 
     const qAdmins = query(collection(db, 'users'));
-    const unsubscribeAdmins = onSnapshot(qAdmins, (snapshot) => {
-      const admins = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAdminUsers(admins);
-    });
+    const unsubscribeAdmins = onSnapshot(
+      qAdmins,
+      (snapshot) => {
+        const admins = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAdminUsers(admins);
+      },
+      (error) => {
+        console.warn("Admin users listener warning:", error);
+      }
+    );
 
     return () => {
       unsubscribeMessages();
@@ -339,38 +365,51 @@ const App: React.FC = () => {
     };
   }, [isAdmin, currentView]);
 
+ const ensureUserDocument = async (loggedInUser: any) => {
+    const userRef = doc(db, 'users', loggedInUser.uid);
+    const userDoc = await getDoc(userRef);
+    const isSuperAdmin = loggedInUser.email === ADMIN_EMAIL;
+
+    if (!userDoc.exists()) {
+      const initialStats = {
+        credits: INITIAL_CREDITS,
+        lastLoginDate: "",
+        streakDay: 1,
+        adsWatchedToday: 0,
+        lastAdDate: "",
+        email: loggedInUser.email || "",
+        role: isSuperAdmin ? 'admin' : 'user'
+      };
+      await setDoc(userRef, initialStats);
+      return initialStats.role;
+    } else {
+      const data = userDoc.data();
+      if (isSuperAdmin && data.role !== 'admin') {
+        await setDoc(userRef, { role: 'admin' }, { merge: true });
+        return 'admin';
+      }
+      return data.role || 'user';
+    }
+  };
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
       if (isSignUp) {
-        const userCredential = await createUserWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
-        const newUser = userCredential.user;
-        // Regular user by default
+        const userCredential = await createUserWithEmailAndPassword(auth, adminEmailInput.trim(), adminPasswordInput);
+        await ensureUserDocument(userCredential.user);
         setIsAdmin(false);
         setIsLoginModalOpen(false);
         setIsSignUp(false);
       } else {
-        const userCredential = await signInWithEmailAndPassword(auth, adminEmailInput, adminPasswordInput);
-        const loggedInUser = userCredential.user;
-        
-        // Check role immediately after login
-        const userDoc = await getDoc(doc(db, 'users', loggedInUser.uid));
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
-          setIsAdmin(true);
-          setIsLoginModalOpen(false);
-          setCurrentView('admin');
-        } else if (loggedInUser.email === ADMIN_EMAIL) {
-          // Bootstrap default admin
-          await setDoc(doc(db, 'users', loggedInUser.uid), {
-            email: loggedInUser.email,
-            role: 'admin'
-          });
+        const userCredential = await signInWithEmailAndPassword(auth, adminEmailInput.trim(), adminPasswordInput);
+        const role = await ensureUserDocument(userCredential.user);
+        if (role === 'admin') {
           setIsAdmin(true);
           setIsLoginModalOpen(false);
           setCurrentView('admin');
         } else {
-          // Just a regular user
           setIsAdmin(false);
           setIsLoginModalOpen(false);
         }
@@ -384,30 +423,18 @@ const App: React.FC = () => {
     setLoginError('');
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const loggedInUser = result.user;
-      
-      // Check if user is admin
-      const userDoc = await getDoc(doc(db, 'users', loggedInUser.uid));
-      if (userDoc.exists() && userDoc.data().role === 'admin') {
-        setIsAdmin(true);
-        setIsLoginModalOpen(false);
-        setCurrentView('admin');
-      } else if (loggedInUser.email === ADMIN_EMAIL) {
-        // Bootstrap default admin
-        await setDoc(doc(db, 'users', loggedInUser.uid), {
-          email: loggedInUser.email,
-          role: 'admin'
-        });
+      const role = await ensureUserDocument(result.user);
+      if (role === 'admin') {
         setIsAdmin(true);
         setIsLoginModalOpen(false);
         setCurrentView('admin');
       } else {
-        // Just a regular user
         setIsAdmin(false);
         setIsLoginModalOpen(false);
       }
     } catch (error: any) {
-      setLoginError(error.message || 'Google Sign-In failed');
+      console.error("Google Sign-In Error:", error);
+      setLoginError(error.message || 'Google Sign-In failed. Please allow popups.');
     }
   };
 
@@ -486,6 +513,16 @@ const App: React.FC = () => {
   // New Studio Optimization States
   const [isListeningComfort, setIsListeningComfort] = useState(false);
   const [isVoiceConsistencyLock, setIsVoiceConsistencyLock] = useState(false);
+  const [isNaturalHumanVocal, setIsNaturalHumanVocal] = useState(false);
+  const [isBezziAgent, setIsBezziAgent] = useState(false);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+
+  const insertProductionTag = (tag: string) => {
+    setScript(prev => {
+      const updated = prev ? `${prev} ${tag} ` : `${tag} `;
+      return updated.slice(0, CHARACTER_LIMIT);
+    });
+  };
   
   // Smart AI State
   const [scriptTitle, setScriptTitle] = useState("");
@@ -549,7 +586,7 @@ const App: React.FC = () => {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const CHARACTER_LIMIT = 999;
+  const CHARACTER_LIMIT = Infinity;
 
   const TUTORIAL_STEPS = [
     { title: "Voice Studio", text: "Look for the 'Record' or 'Upload' buttons in the Vocal Profiles grid.", icon: "🎙️" },
@@ -1172,41 +1209,54 @@ const App: React.FC = () => {
     setScript(vibe.script.slice(0, CHARACTER_LIMIT));
   };
 
-  const handleGenerate = async () => {
-    if (!user) {
-      setIsLoginModalOpen(true);
-      return;
-    }
-    if (!userStats || userStats.credits < TTS_COST) {
-      setIsRewardModalOpen(true);
-      return;
-    }
-    if (isGenerating) return;
+const handleGenerate = async () => {
+    if (isGenerating || !script.trim()) return;
     
     stopPlayback();
+    setTtsError(null);
     setIsGenerating(true);
-    let finalPersonality = personality;
-    if (selectedVoice.isCloned && selectedVoice.vocalFingerprint) {
-      let boostInfo = "";
-      if (selectedVoice.clarityFingerprint) { boostInfo = `\nARTICULATION ENHANCEMENT: ${selectedVoice.clarityFingerprint}`; }
-      finalPersonality = `VOCAL FINGERPRINT: ${selectedVoice.vocalFingerprint}${boostInfo}\n\nMODIFIER: ${personality}. Maintain cloned voice identity strictly.`;
-    }
-    const buffer = await generateSpeech(script, finalPersonality, selectedVoice.engine, autoVibeFX, isListeningComfort, isVoiceConsistencyLock);
-    if (buffer) {
-      // Subtract credits on successful start/generation
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
-          credits: increment(-TTS_COST)
-        });
-      } catch (error) {
-        console.error("Error updating credits:", error);
+
+    try {
+      let finalPersonality = personality;
+      if (selectedVoice.isCloned && selectedVoice.vocalFingerprint) {
+        let boostInfo = "";
+        if (selectedVoice.clarityFingerprint) {
+          boostInfo = `\nARTICULATION ENHANCEMENT: ${selectedVoice.clarityFingerprint}`;
+        }
+        finalPersonality = `VOCAL FINGERPRINT: ${selectedVoice.vocalFingerprint}${boostInfo}\n\nMODIFIER: ${personality}. Maintain cloned voice identity strictly.`;
       }
-      
-      setAudioBuffer(buffer);
-      if (autoPlay) handlePlay(buffer);
+
+      const buffer = await generateSpeech(
+        script,
+        finalPersonality,
+        selectedVoice.engine,
+        autoVibeFX,
+        isListeningComfort,
+        isVoiceConsistencyLock,
+        isBezziAgent,
+        isNaturalHumanVocal
+      );
+      if (buffer) {
+        setAudioBuffer(buffer);
+        if (autoPlay) await handlePlay(buffer);
+      }
+    } catch (err: any) {
+      let errMsg = err?.message || "Failed to generate speech audio.";
+      if (
+        errMsg.includes("QUOTA_EXCEEDED") ||
+        errMsg.includes("Quota exceeded") ||
+        errMsg.includes("quota") ||
+        errMsg.includes("429") ||
+        errMsg.includes("RESOURCE_EXHAUSTED")
+      ) {
+        errMsg = "⚠️ Daily Free Tier Quota Reached: You have reached the Gemini Free Tier daily limit (10 requests/day for voice synthesis). To generate unlimited audio, connect an API key with billing enabled in the Settings > Secrets menu, or check back after the daily quota resets.";
+      } else if (errMsg.includes("PERMISSION_DENIED") || errMsg.includes("suspended") || errMsg.includes("403")) {
+        errMsg = "Permission Denied: Your API key appears to be suspended or invalid. Please check or select an active key in the Settings > Secrets panel.";
+      }
+      setTtsError(errMsg);
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   const startRecording = async (isForClarity: boolean = false) => {
@@ -1444,6 +1494,15 @@ const App: React.FC = () => {
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isVoiceConsistencyLock ? 'right-1' : 'left-1'}`} />
               </button>
             </div>
+            <div className="flex items-center justify-between py-3">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-amber-400">Natural Human Vocal</span>
+                <span className="text-[10px] text-slate-500">Same voice & vibe, 100% real human texture</span>
+              </div>
+              <button onClick={() => setIsNaturalHumanVocal(!isNaturalHumanVocal)} className={`w-11 h-6 rounded-full relative transition-colors ${isNaturalHumanVocal ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-slate-800'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isNaturalHumanVocal ? 'right-1' : 'left-1'}`} />
+              </button>
+            </div>
           </div>
 
           <div className="pt-6 border-t border-slate-800">
@@ -1655,32 +1714,7 @@ const App: React.FC = () => {
               Cloning Guide
             </button>
             
-            {user && (
-              <div className="flex items-center gap-1.5 md:gap-3">
-                <button 
-                  onClick={() => setIsRewardModalOpen(true)}
-                  className="whitespace-nowrap px-2 md:px-5 py-2 md:py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-2xl text-[7px] md:text-[10px] font-black text-amber-500 uppercase tracking-widest transition-all flex items-center gap-1 md:gap-3 group shrink-0"
-                >
-                  <Gift size={11} className="group-hover:rotate-12 transition-transform" />
-                  <span className="hidden xs:inline">Reward</span>
-                </button>
-
-                <button 
-                  onClick={() => setIsRewardModalOpen(true)}
-                  className="flex items-center gap-1.5 md:gap-3 px-2 md:px-5 py-2 md:py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-2xl transition-all group shrink-0"
-                >
-                  <Coins size={11} className="text-amber-400 group-hover:rotate-12 transition-transform" />
-                  <div className="flex flex-col items-start leading-none gap-0.5">
-                    <span className="text-white font-bold text-[9px] md:text-sm">{userStats?.credits || 0}</span>
-                    <span className="text-[6px] md:text-[8px] font-bold text-indigo-400 uppercase tracking-widest opacity-80">Credits</span>
-                  </div>
-                  <div className="hidden sm:block w-px h-4 bg-white/10 mx-0.5 md:mx-1" />
-                  <div className="hidden sm:flex w-5 h-5 md:w-6 md:h-6 bg-indigo-500 rounded-lg items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:bg-indigo-400 transition-colors">
-                    <Gift size={10} className="text-white" />
-                  </div>
-                </button>
-              </div>
-            )}
+            
           {!user && (
             <div className="fixed bottom-4 left-0 right-0 px-4 sm:relative sm:bottom-0 sm:left-0 sm:right-0 sm:px-0 z-[100] sm:z-auto">
               <button 
@@ -1712,7 +1746,7 @@ const App: React.FC = () => {
             {[
               { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
               { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
-              { id: 'rewards', label: 'Rewards', icon: Gift, action: () => setIsRewardModalOpen(true) },
+
               { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
               { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
               { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
@@ -1754,7 +1788,7 @@ const App: React.FC = () => {
               {[
                 { id: 'main', label: 'Studio', icon: Home, action: () => { setCurrentView('main'); setIsEditorActive(false); } },
                 { id: 'editor', label: 'Editor', icon: Waves, action: () => { setCurrentView('main'); setIsEditorActive(true); } },
-                { id: 'rewards', label: 'Rewards', icon: Gift, action: () => setIsRewardModalOpen(true) },
+               
                 { id: 'blog', label: 'Blog', icon: FileText, action: () => setCurrentView('blog') },
                 { id: 'about', label: 'About', icon: Info, action: () => setCurrentView('about') },
                 { id: 'contact', label: 'Contact', icon: Mail, action: () => setCurrentView('contact') },
@@ -1869,9 +1903,27 @@ const App: React.FC = () => {
                     <div className="flex flex-wrap justify-between items-center gap-y-3">
                       <div className="flex flex-wrap items-center gap-3 min-w-0">
                         <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">Drafting Script</span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 ${script.length >= CHARACTER_LIMIT ? 'text-amber-500' : 'text-slate-500'}`}>
-                          {script.length}/{CHARACTER_LIMIT}
-                        </span>
+                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-500">
+  {script.length} chars
+</span>
+
+                        {/* BEZZI AGENT TOGGLE */}
+                        <div 
+                          onClick={() => setIsBezziAgent(!isBezziAgent)}
+                          className={`flex items-center gap-2 px-3 py-1 rounded-xl border cursor-pointer transition-all select-none ${
+                            isBezziAgent 
+                              ? 'bg-amber-500/15 border-amber-500/50 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)]' 
+                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                          title="Professional Voice Director Mode"
+                        >
+                          <Sparkles size={12} className={isBezziAgent ? 'text-amber-400 animate-pulse' : 'text-slate-500'} />
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider">Bezzi Agent</span>
+                          <div className={`w-7 h-4 rounded-full relative transition-colors ${isBezziAgent ? 'bg-amber-500' : 'bg-slate-800'}`}>
+                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isBezziAgent ? 'right-0.5' : 'left-0.5'}`} />
+                          </div>
+                        </div>
+
                         <div className="flex items-center gap-2 bg-slate-900/50 rounded-xl px-3 py-1 border border-slate-800">
                           <input 
                             type="text" 
@@ -1899,17 +1951,56 @@ const App: React.FC = () => {
                         </svg>
                       </button>
                     </div>
-                    <textarea 
-                      value={script} 
-                      onChange={(e) => setScript(e.target.value.slice(0, CHARACTER_LIMIT))} 
-                      maxLength={CHARACTER_LIMIT} 
-                      className="w-full h-80 glass rounded-3xl p-10 text-lg text-slate-100 outline-none resize-none custom-scrollbar" 
-                    />
-                    <div className="text-right px-4 !mt-2">
-                      <span className="text-[10px] font-mono text-slate-500 px-2 py-1 bg-slate-900/40 rounded-lg border border-slate-800/40 select-none">
-                        {script.length} / 999
-                      </span>
-                    </div>
+
+                    {/* BEZZI AGENT STUDIO CUES BAR (Visible when Toggle is ON) */}
+                    {isBezziAgent && (
+                      <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-2.5 animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                            <Sparkles size={10} /> Bezzi Agent Active — Click tags to insert studio cues (AI will perform, not read aloud)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setScript("[WHISPER] कभी सोचा है... [PAUSE] कि आपकी ज़िंदगी का सबसे ख़तरनाक दुश्मन वो नहीं जो आपसे लड़ता है... [BEAT] बल्कि वो है — जो आपको मुस्कुराते हुए हराता है? [LONG PAUSE] [SLOW] पाँच हज़ार साल पहले, हस्तिनापुर के उस दरबार में एक आदमी बैठा था। [BEAT] उसके हाथ में न तलवार थी, न गदा, न कोई अस्त्र। बस — हड्डी के पासे थे। [PAUSE] और उन पासों से उसने वो कर दिखाया — जो पूरी कौरव सेना मिलकर नहीं कर पाई।")}
+                            className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 underline uppercase tracking-wider shrink-0"
+                          >
+                            Load Sample
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { tag: '[WHISPER]', desc: 'Intimate Tone' },
+                            { tag: '[PAUSE]', desc: '1-2s Silence' },
+                            { tag: '[LONG PAUSE]', desc: '2-3s Dramatic' },
+                            { tag: '[BEAT]', desc: '0.5s Breath' },
+                            { tag: '[INTENSE]', desc: 'High Energy' },
+                            { tag: '[SLOW]', desc: 'Measured Pace' },
+                          ].map((item) => (
+                            <button
+                              key={item.tag}
+                              type="button"
+                              onClick={() => insertProductionTag(item.tag)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-amber-500/20 border border-slate-800 hover:border-amber-500/40 text-[10px] font-mono text-amber-300 transition-all flex items-center gap-1.5"
+                              title={item.desc}
+                            >
+                              <span className="font-bold">{item.tag}</span>
+                              <span className="text-[8px] text-slate-500 font-sans">{item.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  <textarea 
+  value={script} 
+  onChange={(e) => setScript(e.target.value)} 
+  className="w-full h-80 glass rounded-3xl p-10 text-lg text-slate-100 outline-none resize-none custom-scrollbar" 
+/>
+<div className="text-right px-4 !mt-2">
+  <span className="text-[10px] font-mono text-slate-500 px-2 py-1 bg-slate-900/40 rounded-lg border border-slate-800/40 select-none">
+    {script.length} chars
+  </span>
+</div>
                   </section>
                 </div>
 
@@ -2112,8 +2203,15 @@ const App: React.FC = () => {
             )}
 
             {!isEditorActive && (
-              <div className="fixed bottom-24 left-0 right-0 px-4 md:px-6 flex justify-center z-[50]">
-                <div className="max-w-4xl w-full glass bg-slate-900/90 p-3 rounded-3xl md:rounded-[32px] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-center gap-3 md:gap-4">
+              <div className="fixed bottom-24 left-0 right-0 px-4 md:px-6 flex flex-col items-center z-[50] pointer-events-none">
+                <div className="max-w-4xl w-full flex flex-col gap-2 pointer-events-auto">
+                  {ttsError && (
+                    <div className="p-3.5 bg-red-950/90 border border-red-500/40 rounded-2xl text-red-200 text-xs flex items-center justify-between gap-3 shadow-2xl backdrop-blur-xl animate-in fade-in">
+                      <span className="leading-relaxed font-medium">{ttsError}</span>
+                      <button onClick={() => setTtsError(null)} className="text-red-400 hover:text-white shrink-0 p-1 font-bold text-sm">✕</button>
+                    </div>
+                  )}
+                  <div className="w-full glass bg-slate-900/90 p-3 rounded-3xl md:rounded-[32px] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-center gap-3 md:gap-4">
                   <div className="flex gap-2 w-full md:w-auto">
                     <button onClick={() => handleDownload()} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Save</button>
                     <button onClick={() => { setEditorAudioBuffer(audioBuffer); setIsEditorActive(true); }} disabled={!audioBuffer} className={`flex-1 md:flex-none h-14 px-6 md:px-8 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${audioBuffer ? 'bg-slate-800 text-indigo-300 hover:bg-slate-700' : 'bg-slate-950 text-slate-700'}`}>Edit</button>
@@ -2130,16 +2228,12 @@ const App: React.FC = () => {
                   
                   <button onClick={handleGenerate} disabled={isGenerating} className={`w-full md:flex-grow h-14 rounded-2xl flex items-center justify-center gap-4 font-bold text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase transition-all relative overflow-hidden ${isGenerating ? 'bg-indigo-950/40 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
                     {isGenerating ? <div className="flex gap-2"><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.1s]" /><div className="w-2 h-2 bg-indigo-300 rounded-full animate-bounce [animation-delay:0.2s]" /></div> : (
-                      user ? (
-                        <div className="flex flex-col items-center justify-center leading-none mt-1">
-                          <span className="mb-0.5">Generate Now</span>
-                          <span className="text-[9px] lowercase opacity-60 font-medium tracking-normal">(20 credits)</span>
-                        </div>
-                      ) : 'Login to Generate'
+                    'Generate Now'
                     )}
                   </button>
                 </div>
               </div>
+            </div>
             )}
             
             {/* NEW SEO CONTENT SECTIONS */}
@@ -2757,10 +2851,10 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      {/* Admin Login Modal */}
+     {/* Admin Login Modal */}
       <AnimatePresence>
         {isLoginModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2772,18 +2866,50 @@ const App: React.FC = () => {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="glass max-w-md w-full p-8 md:p-10 rounded-[40px] relative z-[210] border border-indigo-500/20 shadow-2xl"
+              className="glass max-w-md w-full max-h-[85vh] overflow-y-auto overscroll-contain custom-scrollbar p-6 md:p-8 rounded-[32px] relative z-[210] border border-indigo-500/20 shadow-2xl my-auto"
             >
-              <div className="text-center space-y-4 mb-8">
-                <div className="w-16 h-16 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto text-indigo-400">
-                  <Lock size={32} />
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(false)}
+                className="absolute top-5 right-5 p-2 rounded-full bg-slate-900/80 text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="text-center space-y-2 mb-6">
+                <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-400">
+                  <Lock size={24} />
                 </div>
                 <h2 className="text-2xl font-bold text-white serif-title">{isSignUp ? 'Create Account' : 'Sign In'}</h2>
-                <p className="text-slate-500 text-sm">{isSignUp ? 'Join BellaVox Studio to create your own vocal clones.' : 'Access BellaVox Studio features and your private vocal clones.'}</p>
+                <p className="text-slate-400 text-xs">{isSignUp ? 'Join BellaVox Studio to create your own vocal clones.' : 'Access BellaVox Studio features and your private vocal clones.'}</p>
               </div>
 
-              <form onSubmit={handleAdminLogin} className="space-y-6">
-                <div className="space-y-2">
+              {/* CONTINUE WITH GOOGLE BUTTON AT TOP FOR INSTANT VISIBILITY */}
+              <button 
+                type="button" 
+                onClick={handleGoogleLogin}
+                className="w-full py-3.5 bg-white hover:bg-slate-100 text-slate-950 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg mb-4"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Continue with Google
+              </button>
+
+              <div className="relative py-2 mb-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-800"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                  <span className="bg-[#0b1120] px-4 text-slate-500 font-bold">Or with Email</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
                   <input 
                     type="email" 
@@ -2791,10 +2917,10 @@ const App: React.FC = () => {
                     value={adminEmailInput}
                     onChange={(e) => setAdminEmailInput(e.target.value)}
                     placeholder="you@example.com" 
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Password</label>
                   <input 
                     type="password" 
@@ -2802,21 +2928,18 @@ const App: React.FC = () => {
                     value={adminPasswordInput}
                     onChange={(e) => setAdminPasswordInput(e.target.value)}
                     placeholder="••••••••" 
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-6 py-4 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl px-5 py-3.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" 
                   />
                 </div>
-
                 {loginError && (
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-xs font-bold text-center">
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-xs font-bold text-center">
                     {loginError}
                   </div>
                 )}
-
-                <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">
-                  {isSignUp ? 'Create Account' : 'Authenticate'}
+                <button type="submit" className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/20">
+                  {isSignUp ? 'Create Account' : 'Sign In'}
                 </button>
-
-                <div className="text-center">
+                <div className="text-center pt-1">
                   <button 
                     type="button" 
                     onClick={() => setIsSignUp(!isSignUp)}
@@ -2825,29 +2948,6 @@ const App: React.FC = () => {
                     {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
                   </button>
                 </div>
-
-                <div className="relative py-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-800"></div>
-                  </div>
-                  <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-                    <span className="bg-[#020617] px-4 text-slate-500 font-bold">Or continue with</span>
-                  </div>
-                </div>
-
-                <button 
-                  type="button" 
-                  onClick={handleGoogleLogin}
-                  className="w-full py-4 bg-white hover:bg-slate-100 text-slate-950 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Sign in with Google
-                </button>
               </form>
             </motion.div>
           </div>
